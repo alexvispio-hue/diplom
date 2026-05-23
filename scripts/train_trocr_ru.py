@@ -1,4 +1,6 @@
 import argparse
+import json
+import time
 from pathlib import Path
 import sys
 
@@ -16,8 +18,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--learning-rate", type=float, default=5e-5)
+    parser.add_argument("--num-workers", type=int, default=2)
+    parser.add_argument("--log-every", type=int, default=100)
+    parser.add_argument("--warmup-ratio", type=float, default=0.05)
+    parser.add_argument("--max-grad-norm", type=float, default=1.0)
     parser.add_argument("--max-train-samples", type=int)
     parser.add_argument("--max-eval-samples", type=int, default=500)
+    parser.add_argument("--disable-amp", action="store_true")
     parser.add_argument("--skip-save", action="store_true")
     return parser.parse_args()
 
@@ -25,7 +32,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     import torch
     from torch.utils.data import DataLoader
-    from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+    from transformers import TrOCRProcessor, VisionEncoderDecoderModel, get_linear_schedule_with_warmup
 
     args = parse_args()
     processor = TrOCRProcessor.from_pretrained(args.base_model)
@@ -45,39 +52,93 @@ def main() -> None:
     )
     train_dataset = TrOCRTrainingDataset(train_samples, processor)
     eval_dataset = TrOCRTrainingDataset(eval_samples, processor)
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    eval_loader = DataLoader(eval_dataset, batch_size=args.batch_size)
+    pin_memory = device.type == "cuda"
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=args.num_workers,
+        pin_memory=pin_memory,
+        persistent_workers=args.num_workers > 0,
+    )
+    eval_loader = DataLoader(
+        eval_dataset,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        pin_memory=pin_memory,
+        persistent_workers=args.num_workers > 0,
+    )
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
+    total_steps = max(len(train_loader) * args.epochs, 1)
+    warmup_steps = int(total_steps * args.warmup_ratio)
+    scheduler = get_linear_schedule_with_warmup(optimizer, warmup_steps, total_steps)
+    amp_enabled = device.type == "cuda" and not args.disable_amp
+    scaler = torch.amp.GradScaler("cuda", enabled=amp_enabled)
 
     print(f"device: {device}")
+    if device.type == "cuda":
+        print(f"gpu: {torch.cuda.get_device_name(0)}")
+    print(f"mixed precision: {amp_enabled}")
     print(f"train samples: {len(train_dataset)}")
     print(f"eval samples: {len(eval_dataset)}")
+    print(f"batch size: {args.batch_size}")
+    print(f"training steps: {total_steps}")
     for epoch in range(args.epochs):
+        epoch_started_at = time.perf_counter()
         model.train()
         total_loss = 0.0
-        for batch in train_loader:
-            optimizer.zero_grad()
-            outputs = model(
-                pixel_values=batch["pixel_values"].to(device),
-                labels=batch["labels"].to(device),
-            )
-            outputs.loss.backward()
-            optimizer.step()
+        for step, batch in enumerate(train_loader, start=1):
+            optimizer.zero_grad(set_to_none=True)
+            with torch.amp.autocast("cuda", dtype=torch.float16, enabled=amp_enabled):
+                outputs = model(
+                    pixel_values=batch["pixel_values"].to(device, non_blocking=True),
+                    labels=batch["labels"].to(device, non_blocking=True),
+                )
+            scaler.scale(outputs.loss).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+            scaler.step(optimizer)
+            scaler.update()
+            scheduler.step()
             total_loss += outputs.loss.item()
+            if step % args.log_every == 0 or step == len(train_loader):
+                average_loss = total_loss / step
+                print(f"epoch {epoch + 1} step {step}/{len(train_loader)}: train_loss={average_loss:.4f}")
 
         model.eval()
         eval_loss = 0.0
         with torch.inference_mode():
             for batch in eval_loader:
-                outputs = model(
-                    pixel_values=batch["pixel_values"].to(device),
-                    labels=batch["labels"].to(device),
-                )
+                with torch.amp.autocast("cuda", dtype=torch.float16, enabled=amp_enabled):
+                    outputs = model(
+                        pixel_values=batch["pixel_values"].to(device, non_blocking=True),
+                        labels=batch["labels"].to(device, non_blocking=True),
+                    )
                 eval_loss += outputs.loss.item()
 
         train_loss = total_loss / max(len(train_loader), 1)
         validation_loss = eval_loss / max(len(eval_loader), 1)
-        print(f"epoch {epoch + 1}: train_loss={train_loss:.4f}, validation_loss={validation_loss:.4f}")
+        elapsed_minutes = (time.perf_counter() - epoch_started_at) / 60
+        print(
+            f"epoch {epoch + 1}: train_loss={train_loss:.4f}, "
+            f"validation_loss={validation_loss:.4f}, minutes={elapsed_minutes:.2f}"
+        )
+        if not args.skip_save:
+            checkpoint_dir = args.output_dir / f"checkpoint-epoch-{epoch + 1}"
+            checkpoint_dir.mkdir(parents=True, exist_ok=True)
+            model.save_pretrained(checkpoint_dir)
+            processor.save_pretrained(checkpoint_dir)
+            metrics = {
+                "epoch": epoch + 1,
+                "train_loss": train_loss,
+                "validation_loss": validation_loss,
+                "elapsed_minutes": elapsed_minutes,
+            }
+            (checkpoint_dir / "metrics.json").write_text(
+                json.dumps(metrics, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            print(f"saved checkpoint: {checkpoint_dir}")
 
     if args.skip_save:
         print("checkpoint saving skipped")

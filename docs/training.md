@@ -75,6 +75,35 @@ python scripts/train_trocr_ru.py \
 
 На CPU полное обучение будет очень медленным. Для полноценного эксперимента рекомендуется GPU-среда, например Kaggle Notebook или Google Colab, после чего сохраненную модель можно подключить в приложение через `TROCR_MODEL_NAME`.
 
+Для локальной NVIDIA GPU в WSL:
+
+```bash
+python -m pip install --upgrade --force-reinstall torch \
+  --index-url https://download.pytorch.org/whl/cu130
+```
+
+Скрипт обучения автоматически использует CUDA и mixed precision, если GPU доступна, выводит промежуточный loss и сохраняет checkpoint после каждой эпохи.
+
+Полный локальный запуск на RTX 5070 Ti:
+
+```bash
+python -u scripts/train_trocr_ru.py \
+  --dataset-dir data/training/cyrillic_handwriting \
+  --base-model kazars24/trocr-base-handwritten-ru \
+  --output-dir models/trocr-cyrillic-finetuned \
+  --epochs 1 \
+  --batch-size 32 \
+  --num-workers 4 \
+  --max-eval-samples 1544 \
+  --log-every 100
+```
+
+Проверка фонового процесса:
+
+```bash
+bash scripts/training_status_wsl.sh
+```
+
 Для проверки, что обучающий pipeline запускается, без сохранения checkpoint:
 
 ```bash
