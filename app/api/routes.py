@@ -28,7 +28,7 @@ def models() -> list[ModelInfo]:
     return [
         ModelInfo(
             backend=settings.recognizer_backend,
-            model_name=settings.trocr_model_name,
+            model_name=recognition_service.recognizer.model_name,
             local_inference=True,
         )
     ]

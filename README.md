@@ -30,7 +30,7 @@ RecognitionService
         +--> SQLite history
 ```
 
-Ключевая идея проекта: распознавание выполняется локально, без внешнего OCR API. По умолчанию используется `kazars24/trocr-base-handwritten-ru`, дообученная под русский рукописный текст. Веса модели загружаются из Hugging Face при первом запуске, после чего инференс выполняется внутри приложения.
+Ключевая идея проекта: распознавание выполняется локально, без внешнего OCR API. Если локальный fine-tuned checkpoint присутствует в `models/trocr-cyrillic-finetuned`, приложение использует его автоматически; иначе используется `kazars24/trocr-base-handwritten-ru` из Hugging Face.
 
 ## API
 
@@ -121,6 +121,7 @@ python scripts/evaluate_cyrillic_dataset.py --limit 100
 ```
 
 Инструкция по дообучению модели: `docs/training.md`.
+Результаты выполненного эксперимента: `docs/experiment_results.md`.
 
 Локально подготовленный набор расположен в `data/training/cyrillic_handwriting` и исключен из GitHub, поскольку содержит большой объем изображений.
 

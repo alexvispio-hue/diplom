@@ -121,3 +121,5 @@ python scripts/train_trocr_ru.py \
 train_loss=0.0057
 validation_loss=0.0020
 ```
+
+Полный fine-tuning на RTX 5070 Ti завершен за `98.58` минут. Итоговые метрики приведены в `docs/experiment_results.md`.

@@ -13,7 +13,9 @@ class TrOCRRecognizer(BaseRecognizer):
     def __init__(self, model_name: str | None = None) -> None:
         settings = get_settings()
         self.settings = settings
-        self.model_name = model_name or settings.trocr_model_name
+        self.model_source = model_name or settings.trocr_model_name
+        model_path = Path(self.model_source)
+        self.model_name = model_path.name if model_path.exists() else self.model_source
         self._processor = None
         self._model = None
         self._torch = None
@@ -50,8 +52,8 @@ class TrOCRRecognizer(BaseRecognizer):
 
         self._device = "cuda" if torch.cuda.is_available() else "cpu"
         self._torch = torch
-        self._processor = TrOCRProcessor.from_pretrained(self.model_name)
-        self._model = VisionEncoderDecoderModel.from_pretrained(self.model_name)
+        self._processor = TrOCRProcessor.from_pretrained(self.model_source)
+        self._model = VisionEncoderDecoderModel.from_pretrained(self.model_source)
         self._model.to(self._device)
         self._model.generation_config.max_length = self.settings.generation_max_new_tokens
         self._model.eval()

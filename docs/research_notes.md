@@ -44,3 +44,12 @@ WER = edit_distance(reference_words, hypothesis_words) / len(reference_words)
 - fine-tuning модели на train split;
 - сравнение baseline и fine-tuned checkpoint;
 - последующее тестирование на фотографиях реальных записей.
+
+## Полученный результат
+
+Одна эпоха fine-tuning на RTX 5070 Ti заняла `98.58` минут. На полной тестовой выборке из `1 544` примеров обученный checkpoint улучшил результат:
+
+| Модель | CER | WER |
+| --- | ---: | ---: |
+| Baseline | 0.1002 | 0.4096 |
+| Fine-tuned | **0.0959** | **0.4040** |
