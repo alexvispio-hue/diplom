@@ -1,20 +1,46 @@
+# Python bytecode and build artifacts
+__pycache__/
+*.py[codz]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+
+# Virtual environments and secrets
 .env
+.envrc
 .venv/
 .venv-wsl/
-__pycache__/
-*.pyc
+env/
+venv/
+
+# Test and tooling caches
 .pytest_cache/
 pytest-cache-files-*/
 .mypy_cache/
 .ruff_cache/
+.coverage
+htmlcov/
+
+# Local IDE and notebook files
+.vscode/
+.idea/
+.ipynb_checkpoints/
+
+# Application runtime artifacts
 data/*.log
+data/*.db
 data/uploads/*
 data/processed/*
 data/samples/*
 data/evaluation/processed/*
 data/evaluation/results*.csv
-data/*.db
+
+# Locally downloaded model artifacts
 models/*
+
+# Keep project placeholders and examples
 !models/README.md
 !data/uploads/.gitkeep
 !data/processed/.gitkeep
