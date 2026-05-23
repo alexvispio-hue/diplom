@@ -1,0 +1,15 @@
+fastapi>=0.115
+uvicorn[standard]>=0.32
+python-multipart>=0.0.19
+pydantic-settings>=2.7
+sqlalchemy>=2.0
+pillow>=11.0
+opencv-python>=4.10
+numpy>=2.2
+torch>=2.6
+transformers>=4.47
+sentencepiece>=0.2
+streamlit>=1.41
+requests>=2.32
+httpx>=0.28
+pytest>=8.3

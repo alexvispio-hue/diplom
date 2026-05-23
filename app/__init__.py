@@ -1,0 +1,1 @@
+"""Handwriting OCR application package."""

@@ -1,0 +1,17 @@
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - hf-cache:/root/.cache/huggingface
+    environment:
+      APP_NAME: Handwriting OCR
+      APP_VERSION: 0.1.0
+      RECOGNIZER_BACKEND: trocr
+      TROCR_MODEL_NAME: microsoft/trocr-base-handwritten
+      GENERATION_MAX_NEW_TOKENS: 128
+
+volumes:
+  hf-cache:

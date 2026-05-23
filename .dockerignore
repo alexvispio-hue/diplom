@@ -1,0 +1,13 @@
+.git
+.venv
+.venv-wsl
+__pycache__
+*.pyc
+.pytest_cache
+pytest-cache-files-*
+data/uploads/*
+data/processed/*
+data/evaluation/processed/*
+data/evaluation/results*.csv
+data/*.db
+data/*.log
