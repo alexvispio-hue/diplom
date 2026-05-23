@@ -39,6 +39,7 @@ data/evaluation/processed_cyrillic/*
 data/evaluation/results*.csv
 data/evaluation/*.csv
 data/training/*
+data/runtime/*
 
 # Locally downloaded model artifacts
 models/*

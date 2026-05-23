@@ -67,6 +67,18 @@ bash scripts/run_backend_wsl.sh
 bash scripts/run_ui_wsl.sh
 ```
 
+Удобный запуск всего приложения в фоне одной командой:
+
+```bash
+bash scripts/start_app_wsl.sh
+```
+
+Остановка backend и интерфейса:
+
+```bash
+bash scripts/stop_app_wsl.sh
+```
+
 Запуск тестов:
 
 ```bash
