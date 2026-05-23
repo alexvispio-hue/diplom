@@ -42,10 +42,16 @@ def render_recognition_tab() -> None:
         st.caption(f"Размер файла: {len(uploaded_file.getvalue()) / 1024:.1f} КБ")
 
     with right:
+        apply_preprocessing = st.toggle(
+            "Предобработка фотографии",
+            value=True,
+            help="Отключите для уже вырезанных чистых строк из датасета.",
+        )
         if st.button("Распознать текст", type="primary", use_container_width=True):
             with st.spinner("Изображение обрабатывается локальной моделью..."):
                 files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
-                response = requests.post(f"{API_URL}/recognize", files=files, timeout=300)
+                data = {"preprocess": str(apply_preprocessing).lower()}
+                response = requests.post(f"{API_URL}/recognize", files=files, data=data, timeout=300)
 
             if response.ok:
                 st.session_state["last_result"] = response.json()
@@ -67,7 +73,8 @@ def render_recognition_tab() -> None:
             st.caption(
                 f"Модель: {result['model_name']} | "
                 f"Время: {result['processing_time_ms']} мс | "
-                f"Размер: {result['file_size_bytes'] / 1024:.1f} КБ"
+                f"Размер: {result['file_size_bytes'] / 1024:.1f} КБ | "
+                f"Предобработка: {'да' if result['preprocessing_applied'] else 'нет'}"
             )
 
 
@@ -102,7 +109,8 @@ def render_history_tab() -> None:
             st.caption(
                 f"Модель: {item['model_name']} | "
                 f"{item['processing_time_ms']} мс | "
-                f"{item['file_size_bytes'] / 1024:.1f} КБ"
+                f"{item['file_size_bytes'] / 1024:.1f} КБ | "
+                f"Предобработка: {'да' if item['preprocessing_applied'] else 'нет'}"
             )
 
 

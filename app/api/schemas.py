@@ -12,6 +12,7 @@ class RecognitionResponse(BaseModel):
     model_name: str
     processing_time_ms: int
     created_at: datetime
+    preprocessing_applied: bool
     original_image_url: str
     processed_image_url: str | None
 
@@ -27,6 +28,7 @@ class RecognitionHistoryItem(BaseModel):
     model_name: str
     processing_time_ms: int
     created_at: datetime
+    preprocessing_applied: bool
     original_image_url: str
     processed_image_url: str | None
 

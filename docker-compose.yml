@@ -10,7 +10,7 @@ services:
       APP_NAME: Handwriting OCR
       APP_VERSION: 0.1.0
       RECOGNIZER_BACKEND: trocr
-      TROCR_MODEL_NAME: microsoft/trocr-base-handwritten
+      TROCR_MODEL_NAME: kazars24/trocr-base-handwritten-ru
       GENERATION_MAX_NEW_TOKENS: 128
 
 volumes:

@@ -19,6 +19,7 @@ def test_models_endpoint() -> None:
 
     assert response.status_code == 200
     assert response.json()[0]["local_inference"] is True
+    assert response.json()[0]["model_name"] == "kazars24/trocr-base-handwritten-ru"
 
 
 def test_recognize_rejects_non_image_file() -> None:

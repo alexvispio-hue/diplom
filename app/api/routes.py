@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
@@ -37,13 +37,14 @@ def models() -> list[ModelInfo]:
 @router.post("/recognize", response_model=RecognitionResponse)
 async def recognize_image(
     file: UploadFile = File(...),
+    preprocess: bool = Form(default=True),
     db: Session = Depends(get_db),
 ) -> RecognitionResponse:
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Загрузите файл изображения.")
 
     try:
-        record = await recognition_service.recognize_upload(file, db)
+        record = await recognition_service.recognize_upload(file, db, preprocessing_applied=preprocess)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
@@ -58,6 +59,7 @@ async def recognize_image(
         model_name=record.model_name,
         processing_time_ms=record.processing_time_ms,
         created_at=record.created_at,
+        preprocessing_applied=record.preprocessing_applied,
         original_image_url=f"/api/history/{record.id}/image/original",
         processed_image_url=f"/api/history/{record.id}/image/processed" if record.processed_image_path else None,
     )

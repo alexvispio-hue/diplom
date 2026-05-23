@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     upload_dir: Path = Field(default=BASE_DIR / "data" / "uploads")
     processed_dir: Path = Field(default=BASE_DIR / "data" / "processed")
     database_url: str = Field(default=f"sqlite:///{BASE_DIR / 'data' / 'ocr_history.db'}")
-    trocr_model_name: str = "microsoft/trocr-base-handwritten"
+    trocr_model_name: str = "kazars24/trocr-base-handwritten-ru"
     max_upload_size_mb: int = 10
     recognizer_backend: str = "trocr"
     generation_max_new_tokens: int = 128

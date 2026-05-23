@@ -40,3 +40,7 @@ def _run_lightweight_migrations() -> None:
             connection.execute(
                 text("ALTER TABLE recognition_records ADD COLUMN file_size_bytes INTEGER NOT NULL DEFAULT 0")
             )
+        if "preprocessing_applied" not in columns:
+            connection.execute(
+                text("ALTER TABLE recognition_records ADD COLUMN preprocessing_applied BOOLEAN NOT NULL DEFAULT 1")
+            )

@@ -26,10 +26,7 @@ class TrOCRRecognizer(BaseRecognizer):
         pixel_values = self._processor(images=image, return_tensors="pt").pixel_values.to(self._device)
 
         with self._torch.inference_mode():
-            generated_ids = self._model.generate(
-                pixel_values,
-                max_new_tokens=self.settings.generation_max_new_tokens,
-            )
+            generated_ids = self._model.generate(pixel_values)
 
         text = self._processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
         return RecognitionResult(
@@ -56,4 +53,5 @@ class TrOCRRecognizer(BaseRecognizer):
         self._processor = TrOCRProcessor.from_pretrained(self.model_name)
         self._model = VisionEncoderDecoderModel.from_pretrained(self.model_name)
         self._model.to(self._device)
+        self._model.generation_config.max_length = self.settings.generation_max_new_tokens
         self._model.eval()

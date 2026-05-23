@@ -18,7 +18,12 @@ class RecognitionService:
         self.recognizer = recognizer
         self.preprocessor = preprocessor or ImagePreprocessor()
 
-    async def recognize_upload(self, upload: UploadFile, db: Session) -> RecognitionRecord:
+    async def recognize_upload(
+        self,
+        upload: UploadFile,
+        db: Session,
+        preprocessing_applied: bool = True,
+    ) -> RecognitionRecord:
         source_path = self._build_upload_path(upload.filename or "image.png")
         processed_path = self.settings.processed_dir / f"{source_path.stem}.png"
 
@@ -33,15 +38,22 @@ class RecognitionService:
             raise ValueError(f"Размер файла превышает {self.settings.max_upload_size_mb} МБ.")
 
         start = time.perf_counter()
-        self.preprocessor.preprocess(source_path, processed_path)
-        result = self.recognizer.recognize(processed_path)
+        recognition_path = source_path
+        saved_processed_path = None
+        if preprocessing_applied:
+            self.preprocessor.preprocess(source_path, processed_path)
+            recognition_path = processed_path
+            saved_processed_path = str(processed_path)
+
+        result = self.recognizer.recognize(recognition_path)
         elapsed_ms = int((time.perf_counter() - start) * 1000)
 
         record = RecognitionRecord(
             original_filename=upload.filename or source_path.name,
             file_size_bytes=file_size_bytes,
             stored_image_path=str(source_path),
-            processed_image_path=str(processed_path),
+            processed_image_path=saved_processed_path,
+            preprocessing_applied=preprocessing_applied,
             recognized_text=result.text,
             confidence=result.confidence,
             model_name=result.model_name,
