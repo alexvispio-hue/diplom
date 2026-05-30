@@ -56,3 +56,15 @@ def _run_lightweight_migrations() -> None:
             connection.execute(
                 text("ALTER TABLE recognition_records ADD COLUMN line_image_paths_json TEXT")
             )
+        if "feedback_rating" not in columns:
+            connection.execute(
+                text("ALTER TABLE recognition_records ADD COLUMN feedback_rating VARCHAR(32)")
+            )
+        if "feedback_sample_path" not in columns:
+            connection.execute(
+                text("ALTER TABLE recognition_records ADD COLUMN feedback_sample_path VARCHAR(512)")
+            )
+        if "feedback_created_at" not in columns:
+            connection.execute(
+                text("ALTER TABLE recognition_records ADD COLUMN feedback_created_at DATETIME")
+            )

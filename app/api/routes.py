@@ -6,10 +6,11 @@ from fastapi.responses import FileResponse
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from app.api.schemas import HealthResponse, ModelInfo, RecognitionHistoryItem, RecognitionResponse
+from app.api.schemas import FeedbackRequest, HealthResponse, ModelInfo, RecognitionHistoryItem, RecognitionResponse
 from app.core.config import get_settings
 from app.ocr.factory import build_recognizer
 from app.services.recognition_service import RecognitionService
+from app.services.feedback_service import FeedbackService
 from app.storage.database import get_db
 from app.storage.models import RecognitionRecord
 
@@ -17,6 +18,7 @@ from app.storage.models import RecognitionRecord
 router = APIRouter()
 settings = get_settings()
 recognition_service = RecognitionService(build_recognizer())
+feedback_service = FeedbackService()
 
 
 def _build_recognition_response(record: RecognitionRecord) -> RecognitionResponse:
@@ -33,6 +35,8 @@ def _build_recognition_response(record: RecognitionRecord) -> RecognitionRespons
         recognition_mode=record.recognition_mode,
         line_count=record.line_count,
         line_image_urls=record.line_image_urls,
+        feedback_rating=record.feedback_rating,
+        feedback_saved_for_training=record.feedback_saved_for_training,
         original_image_url=f"/api/history/{record.id}/image/original",
         processed_image_url=f"/api/history/{record.id}/image/processed" if record.processed_image_path else None,
     )
@@ -104,6 +108,17 @@ def history_item(record_id: int, db: Session = Depends(get_db)) -> RecognitionRe
     if record is None:
         raise HTTPException(status_code=404, detail="Запись не найдена.")
     return record
+
+
+@router.post("/history/{record_id}/feedback", response_model=RecognitionHistoryItem)
+def save_feedback(record_id: int, feedback: FeedbackRequest, db: Session = Depends(get_db)) -> RecognitionRecord:
+    record = db.get(RecognitionRecord, record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Запись не найдена.")
+    try:
+        return feedback_service.save(record, feedback.rating, db)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/history/{record_id}/image/{image_kind}")

@@ -1,8 +1,18 @@
+import html
+import json
+import re
+
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 
 
 API_URL = "http://localhost:8000/api"
+FEEDBACK_LABELS = {
+    "exact": "Полностью совпадает",
+    "partial": "Частично совпадает",
+    "mismatch": "Не совпадает",
+}
 
 
 st.set_page_config(page_title="Handwriting OCR", page_icon="OCR", layout="wide")
@@ -13,6 +23,70 @@ def api_get(path: str, timeout: int = 10):
     response = requests.get(f"{API_URL}{path}", timeout=timeout)
     response.raise_for_status()
     return response.json()
+
+
+def render_copyable_words(text: str) -> None:
+    words = re.findall(r"\S+", text)
+    if not words:
+        return
+    buttons = "".join(
+        (
+            f'<button title="Копировать" onclick=\'copyWord({html.escape(json.dumps(word, ensure_ascii=False), quote=True)})\'>'
+            f"{html.escape(word)}</button>"
+        )
+        for word in words
+    )
+    components.html(
+        f"""
+        <style>
+            body {{ margin: 0; font-family: sans-serif; }}
+            .words {{ display: flex; flex-wrap: wrap; gap: 6px; }}
+            button {{
+                border: 1px solid #d5d9e0; border-radius: 6px; background: white;
+                color: #1f2937; cursor: pointer; font-size: 14px; padding: 6px 9px;
+            }}
+            button:hover {{ border-color: #ff4b4b; color: #b91c1c; }}
+            #status {{ color: #347a48; font-size: 12px; min-height: 18px; padding-top: 5px; }}
+        </style>
+        <div class="words">{buttons}</div>
+        <div id="status"></div>
+        <script>
+            async function copyWord(word) {{
+                await navigator.clipboard.writeText(word);
+                document.getElementById("status").textContent = `Скопировано: ${{word}}`;
+            }}
+        </script>
+        """,
+        height=68,
+    )
+
+
+def render_feedback(result: dict) -> None:
+    st.markdown("**Оценка распознавания**")
+    rating = st.radio(
+        "Совпадает ли текст с фотографией?",
+        options=list(FEEDBACK_LABELS),
+        format_func=FEEDBACK_LABELS.get,
+        horizontal=True,
+        key=f"feedback_rating_{result['id']}",
+        index=list(FEEDBACK_LABELS).index(result["feedback_rating"]) if result["feedback_rating"] else 0,
+    )
+    if st.button("Сохранить оценку", key=f"save_feedback_{result['id']}", use_container_width=True):
+        response = requests.post(
+            f"{API_URL}/history/{result['id']}/feedback",
+            json={"rating": rating},
+            timeout=20,
+        )
+        if response.ok:
+            saved = response.json()
+            result["feedback_rating"] = saved["feedback_rating"]
+            result["feedback_saved_for_training"] = saved["feedback_saved_for_training"]
+            if saved["feedback_saved_for_training"]:
+                st.success("Оценка сохранена. Пример добавлен для последующего дообучения.")
+            else:
+                st.success("Оценка сохранена.")
+        else:
+            st.error(response.json().get("detail", "Не удалось сохранить оценку."))
 
 
 def render_system_status() -> None:
@@ -68,10 +142,16 @@ def render_recognition_tab() -> None:
                     caption=f"Найдено строк: {result['line_count']}",
                     use_container_width=True,
                 )
-            st.text_area("Распознанный текст", value=result["recognized_text"], height=220)
+            edited_text = st.text_area(
+                "Распознанный текст",
+                value=result["recognized_text"],
+                height=220,
+                key=f"recognized_text_{result['id']}",
+            )
+            render_copyable_words(edited_text)
             st.download_button(
                 "Экспорт в TXT",
-                data=result["recognized_text"],
+                data=edited_text,
                 file_name=f"recognition_{result['id']}.txt",
                 mime="text/plain",
                 use_container_width=True,
@@ -83,6 +163,7 @@ def render_recognition_tab() -> None:
                 f"Строк: {result['line_count']} | "
                 f"Предобработка: {'да' if result['preprocessing_applied'] else 'нет'}"
             )
+            render_feedback(result)
 
 
 def render_history_tab() -> None:
@@ -121,6 +202,8 @@ def render_history_tab() -> None:
                 f"Строк: {item['line_count']} | "
                 f"Предобработка: {'да' if item['preprocessing_applied'] else 'нет'}"
             )
+            if item["feedback_rating"]:
+                st.caption(f"Оценка: {FEEDBACK_LABELS[item['feedback_rating']]}")
 
 
 def render_experiments_tab() -> None:

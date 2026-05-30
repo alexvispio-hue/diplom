@@ -24,6 +24,9 @@ class RecognitionRecord(Base):
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     model_name: Mapped[str] = mapped_column(String(128), nullable=False)
     processing_time_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    feedback_rating: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    feedback_sample_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    feedback_created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     @property
@@ -41,3 +44,7 @@ class RecognitionRecord(Base):
         if not self.line_image_paths_json:
             return []
         return [f"/api/history/{self.id}/lines/{index}" for index, _ in enumerate(json.loads(self.line_image_paths_json))]
+
+    @property
+    def feedback_saved_for_training(self) -> bool:
+        return self.feedback_sample_path is not None

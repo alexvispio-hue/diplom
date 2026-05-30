@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -16,6 +18,8 @@ class RecognitionResponse(BaseModel):
     recognition_mode: str
     line_count: int
     line_image_urls: list[str]
+    feedback_rating: str | None
+    feedback_saved_for_training: bool
     original_image_url: str
     processed_image_url: str | None
 
@@ -35,6 +39,8 @@ class RecognitionHistoryItem(BaseModel):
     recognition_mode: str
     line_count: int
     line_image_urls: list[str]
+    feedback_rating: str | None
+    feedback_saved_for_training: bool
     original_image_url: str
     processed_image_url: str | None
 
@@ -49,3 +55,7 @@ class ModelInfo(BaseModel):
     backend: str
     model_name: str
     local_inference: bool
+
+
+class FeedbackRequest(BaseModel):
+    rating: Literal["exact", "partial", "mismatch"]

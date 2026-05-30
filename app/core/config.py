@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     upload_dir: Path = Field(default=BASE_DIR / "data" / "uploads")
     processed_dir: Path = Field(default=BASE_DIR / "data" / "processed")
+    feedback_dir: Path = Field(default=BASE_DIR / "data" / "training" / "user_feedback")
     database_url: str = Field(default=f"sqlite:///{BASE_DIR / 'data' / 'ocr_history.db'}")
     trocr_model_name: str = "kazars24/trocr-base-handwritten-ru"
     local_mixed_model_dir: Path = Field(default=BASE_DIR / "models" / "trocr-cyrillic-mixed")
@@ -32,4 +33,5 @@ def get_settings() -> Settings:
     settings = Settings()
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
     settings.processed_dir.mkdir(parents=True, exist_ok=True)
+    settings.feedback_dir.mkdir(parents=True, exist_ok=True)
     return settings
