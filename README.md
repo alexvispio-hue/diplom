@@ -32,7 +32,7 @@ RecognitionService
         +--> SQLite history
 ```
 
-Ключевая идея проекта: распознавание выполняется локально, без внешнего OCR API. Если локальный fine-tuned checkpoint присутствует в `models/trocr-cyrillic-finetuned`, приложение использует его автоматически; иначе используется `kazars24/trocr-base-handwritten-ru` из Hugging Face.
+Ключевая идея проекта: распознавание выполняется локально, без внешнего OCR API. Приложение автоматически выбирает наиболее обученный локальный checkpoint: сначала `models/trocr-cyrillic-mixed`, затем `models/trocr-cyrillic-finetuned`. Если локальных моделей нет, используется `kazars24/trocr-base-handwritten-ru` из Hugging Face.
 
 ## API
 

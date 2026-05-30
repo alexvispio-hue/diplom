@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     processed_dir: Path = Field(default=BASE_DIR / "data" / "processed")
     database_url: str = Field(default=f"sqlite:///{BASE_DIR / 'data' / 'ocr_history.db'}")
     trocr_model_name: str = "kazars24/trocr-base-handwritten-ru"
+    local_mixed_model_dir: Path = Field(default=BASE_DIR / "models" / "trocr-cyrillic-mixed")
     local_finetuned_model_dir: Path = Field(default=BASE_DIR / "models" / "trocr-cyrillic-finetuned")
     prefer_local_finetuned_model: bool = True
     max_upload_size_mb: int = 10
