@@ -34,7 +34,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_split(dataset_dir: Path, split: str, limit: int | None = None) -> list[CyrillicSample]:
-    return load_cyrillic_samples(dataset_dir / f"{split}.tsv", dataset_dir / split, limit)
+    return load_cyrillic_samples(dataset_dir / f"{split}.tsv", dataset_dir / split, limit, check_files=False)
 
 
 def main() -> None:
