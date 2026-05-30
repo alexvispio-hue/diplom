@@ -13,6 +13,9 @@ class RecognitionResponse(BaseModel):
     processing_time_ms: int
     created_at: datetime
     preprocessing_applied: bool
+    recognition_mode: str
+    line_count: int
+    line_image_urls: list[str]
     original_image_url: str
     processed_image_url: str | None
 
@@ -29,6 +32,9 @@ class RecognitionHistoryItem(BaseModel):
     processing_time_ms: int
     created_at: datetime
     preprocessing_applied: bool
+    recognition_mode: str
+    line_count: int
+    line_image_urls: list[str]
     original_image_url: str
     processed_image_url: str | None
 

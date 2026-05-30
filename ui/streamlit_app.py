@@ -42,16 +42,24 @@ def render_recognition_tab() -> None:
         st.caption(f"Размер файла: {len(uploaded_file.getvalue()) / 1024:.1f} КБ")
 
     with right:
-        apply_preprocessing = st.toggle(
-            "Предобработка фотографии",
-            value=True,
-            help="Отключите для уже вырезанных чистых строк из датасета.",
+        recognition_mode = st.radio(
+            "Режим распознавания",
+            options=["Фрагмент строки", "Страница"],
+            horizontal=True,
         )
+        apply_preprocessing = True
+        if recognition_mode == "Фрагмент строки":
+            apply_preprocessing = st.toggle(
+                "Предобработка фотографии",
+                value=True,
+                help="Отключите для уже вырезанных чистых строк из датасета.",
+            )
         if st.button("Распознать текст", type="primary", use_container_width=True):
             with st.spinner("Изображение обрабатывается локальной моделью..."):
                 files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
                 data = {"preprocess": str(apply_preprocessing).lower()}
-                response = requests.post(f"{API_URL}/recognize", files=files, data=data, timeout=300)
+                endpoint = "/recognize-page" if recognition_mode == "Страница" else "/recognize"
+                response = requests.post(f"{API_URL}{endpoint}", files=files, data=data, timeout=300)
 
             if response.ok:
                 st.session_state["last_result"] = response.json()
@@ -62,6 +70,12 @@ def render_recognition_tab() -> None:
         result = st.session_state.get("last_result")
         if result:
             st.subheader("Результат")
+            if result["recognition_mode"] == "page" and result["processed_image_url"]:
+                st.image(
+                    f"{API_URL.replace('/api', '')}{result['processed_image_url']}",
+                    caption=f"Найдено строк: {result['line_count']}",
+                    use_container_width=True,
+                )
             st.text_area("Распознанный текст", value=result["recognized_text"], height=220)
             st.download_button(
                 "Экспорт в TXT",
@@ -74,6 +88,7 @@ def render_recognition_tab() -> None:
                 f"Модель: {result['model_name']} | "
                 f"Время: {result['processing_time_ms']} мс | "
                 f"Размер: {result['file_size_bytes'] / 1024:.1f} КБ | "
+                f"Строк: {result['line_count']} | "
                 f"Предобработка: {'да' if result['preprocessing_applied'] else 'нет'}"
             )
 
@@ -97,7 +112,7 @@ def render_history_tab() -> None:
                 st.image(f"{API_URL.replace('/api', '')}{item['original_image_url']}", use_container_width=True)
             if item["processed_image_url"]:
                 with image_right:
-                    st.caption("После предобработки")
+                    st.caption("Найденные строки" if item["recognition_mode"] == "page" else "После предобработки")
                     st.image(f"{API_URL.replace('/api', '')}{item['processed_image_url']}", use_container_width=True)
 
             st.text_area(
@@ -110,6 +125,8 @@ def render_history_tab() -> None:
                 f"Модель: {item['model_name']} | "
                 f"{item['processing_time_ms']} мс | "
                 f"{item['file_size_bytes'] / 1024:.1f} КБ | "
+                f"Режим: {'страница' if item['recognition_mode'] == 'page' else 'фрагмент'} | "
+                f"Строк: {item['line_count']} | "
                 f"Предобработка: {'да' if item['preprocessing_applied'] else 'нет'}"
             )
 

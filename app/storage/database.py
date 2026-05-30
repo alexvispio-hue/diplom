@@ -44,3 +44,15 @@ def _run_lightweight_migrations() -> None:
             connection.execute(
                 text("ALTER TABLE recognition_records ADD COLUMN preprocessing_applied BOOLEAN NOT NULL DEFAULT 1")
             )
+        if "recognition_mode" not in columns:
+            connection.execute(
+                text("ALTER TABLE recognition_records ADD COLUMN recognition_mode VARCHAR(32) NOT NULL DEFAULT 'fragment'")
+            )
+        if "line_count" not in columns:
+            connection.execute(
+                text("ALTER TABLE recognition_records ADD COLUMN line_count INTEGER NOT NULL DEFAULT 1")
+            )
+        if "line_image_paths_json" not in columns:
+            connection.execute(
+                text("ALTER TABLE recognition_records ADD COLUMN line_image_paths_json TEXT")
+            )

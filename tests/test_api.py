@@ -31,3 +31,14 @@ def test_recognize_rejects_non_image_file() -> None:
     )
 
     assert response.status_code == 400
+
+
+def test_recognize_page_rejects_non_image_file() -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/recognize-page",
+        files={"file": ("note.txt", b"hello", "text/plain")},
+    )
+
+    assert response.status_code == 400
