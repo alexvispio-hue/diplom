@@ -145,6 +145,7 @@ python scripts/evaluate_cyrillic_dataset.py --limit 100
 Результаты выполненного эксперимента: `docs/experiment_results.md`.
 
 Локально подготовленный набор расположен в `data/training/cyrillic_handwriting` и исключен из GitHub, поскольку содержит большой объем изображений.
+Для повторного обучения на реальных фотографиях слов можно подключить распакованный `school_notebooks_RU` и локально сгенерированные синтетические слова. Команды подготовки приведены в `docs/training.md`.
 
 ## Docker
 

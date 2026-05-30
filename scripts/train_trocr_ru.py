@@ -7,12 +7,15 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.training.cyrillic_dataset import TrOCRTrainingDataset, load_cyrillic_samples
+from app.training.cyrillic_dataset import CyrillicSample, TrOCRTrainingDataset, load_cyrillic_samples
+from app.training.image_augmentation import HandwritingPhotoAugmenter
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Fine-tune TrOCR on Russian handwritten fragments.")
     parser.add_argument("--dataset-dir", type=Path, default=Path("data/training/cyrillic_handwriting"))
+    parser.add_argument("--extra-train-dataset-dir", type=Path, action="append", default=[])
+    parser.add_argument("--eval-dataset-dir", type=Path)
     parser.add_argument("--base-model", default="kazars24/trocr-base-handwritten-ru")
     parser.add_argument("--output-dir", type=Path, default=Path("models/trocr-cyrillic-finetuned"))
     parser.add_argument("--epochs", type=int, default=1)
@@ -25,8 +28,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-train-samples", type=int)
     parser.add_argument("--max-eval-samples", type=int, default=500)
     parser.add_argument("--disable-amp", action="store_true")
+    parser.add_argument("--augment", action="store_true")
     parser.add_argument("--skip-save", action="store_true")
     return parser.parse_args()
+
+
+def load_split(dataset_dir: Path, split: str, limit: int | None = None) -> list[CyrillicSample]:
+    return load_cyrillic_samples(dataset_dir / f"{split}.tsv", dataset_dir / split, limit)
 
 
 def main() -> None:
@@ -40,17 +48,17 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    train_samples = load_cyrillic_samples(
-        args.dataset_dir / "train.tsv",
-        args.dataset_dir / "train",
-        args.max_train_samples,
+    train_samples = load_split(args.dataset_dir, "train", args.max_train_samples)
+    for extra_dataset_dir in args.extra_train_dataset_dir:
+        train_samples.extend(load_split(extra_dataset_dir, "train", args.max_train_samples))
+    eval_dataset_dir = args.eval_dataset_dir or args.dataset_dir
+    eval_split = "val" if (eval_dataset_dir / "val.tsv").exists() else "test"
+    eval_samples = load_split(eval_dataset_dir, eval_split, args.max_eval_samples)
+    train_dataset = TrOCRTrainingDataset(
+        train_samples,
+        processor,
+        transform=HandwritingPhotoAugmenter() if args.augment else None,
     )
-    eval_samples = load_cyrillic_samples(
-        args.dataset_dir / "test.tsv",
-        args.dataset_dir / "test",
-        args.max_eval_samples,
-    )
-    train_dataset = TrOCRTrainingDataset(train_samples, processor)
     eval_dataset = TrOCRTrainingDataset(eval_samples, processor)
     pin_memory = device.type == "cuda"
     train_loader = DataLoader(

@@ -25,10 +25,17 @@ def load_cyrillic_samples(labels_path: Path, images_dir: Path, limit: int | None
 
 
 class TrOCRTrainingDataset:
-    def __init__(self, samples: list[CyrillicSample], processor, max_target_length: int = 64) -> None:
+    def __init__(
+        self,
+        samples: list[CyrillicSample],
+        processor,
+        max_target_length: int = 64,
+        transform=None,
+    ) -> None:
         self.samples = samples
         self.processor = processor
         self.max_target_length = max_target_length
+        self.transform = transform
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -36,6 +43,8 @@ class TrOCRTrainingDataset:
     def __getitem__(self, index: int):
         sample = self.samples[index]
         image = Image.open(sample.image_path).convert("RGB")
+        if self.transform:
+            image = self.transform(image)
         pixel_values = self.processor(images=image, return_tensors="pt").pixel_values.squeeze(0)
         labels = self.processor.tokenizer(
             sample.text,

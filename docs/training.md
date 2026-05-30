@@ -123,3 +123,51 @@ validation_loss=0.0020
 ```
 
 Полный fine-tuning на RTX 5070 Ti завершен за `98.58` минут. Итоговые метрики приведены в `docs/experiment_results.md`.
+
+## Повторное обучение на школьных тетрадях и синтетических словах
+
+Для повышения качества на фотографиях слов используется смесь:
+
+- исходного `Cyrillic Handwriting Dataset`;
+- реальных слов из `ai-forever/school_notebooks_RU`;
+- синтетических русских слов с разными шрифтами и фото-аугментациями.
+
+Подготовка вырезок из распакованного школьного датасета:
+
+```bash
+python scripts/prepare_school_notebooks.py \
+  --source-dir /mnt/c/Users/Aleksandr/Desktop/schooldataset \
+  --output-dir data/training/school_notebooks_words
+```
+
+Генерация 100 000 синтетических слов:
+
+```bash
+python scripts/generate_synthetic_words.py \
+  --source-manifests \
+    data/training/cyrillic_handwriting/train.tsv \
+    data/training/school_notebooks_words/train.tsv \
+  --output-dir data/training/synthetic_ru_words \
+  --samples 100000
+```
+
+Повторное обучение начинается с уже сохраненного checkpoint:
+
+```bash
+python -u scripts/train_trocr_ru.py \
+  --dataset-dir data/training/cyrillic_handwriting \
+  --extra-train-dataset-dir data/training/school_notebooks_words \
+  --extra-train-dataset-dir data/training/synthetic_ru_words \
+  --eval-dataset-dir data/training/school_notebooks_words \
+  --base-model models/trocr-cyrillic-finetuned \
+  --output-dir models/trocr-cyrillic-mixed \
+  --epochs 3 \
+  --batch-size 32 \
+  --learning-rate 1e-5 \
+  --num-workers 4 \
+  --max-eval-samples 5000 \
+  --augment \
+  --log-every 250
+```
+
+Скрипт применяет к обучающим изображениям случайные изменения яркости, контраста, небольшой поворот, размытие, шум и JPEG-сжатие. Проверочная выборка не искажается.
