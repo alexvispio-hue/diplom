@@ -21,7 +21,7 @@ nohup python -u scripts/train_trocr_ru.py \
   --base-model models/trocr-cyrillic-finetuned \
   --output-dir models/trocr-cyrillic-mixed \
   --epochs 1 \
-  --batch-size 32 \
+  --batch-size 24 \
   --learning-rate 1e-5 \
   --num-workers 4 \
   --max-eval-samples 5000 \
