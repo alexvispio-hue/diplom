@@ -42,24 +42,16 @@ def render_recognition_tab() -> None:
         st.caption(f"Размер файла: {len(uploaded_file.getvalue()) / 1024:.1f} КБ")
 
     with right:
-        recognition_mode = st.radio(
-            "Режим распознавания",
-            options=["Фрагмент строки", "Страница"],
-            horizontal=True,
+        apply_preprocessing = st.toggle(
+            "Предобработка фотографии",
+            value=True,
+            help="Отключите для уже вырезанных чистых строк из датасета.",
         )
-        apply_preprocessing = True
-        if recognition_mode == "Фрагмент строки":
-            apply_preprocessing = st.toggle(
-                "Предобработка фотографии",
-                value=True,
-                help="Отключите для уже вырезанных чистых строк из датасета.",
-            )
         if st.button("Распознать текст", type="primary", use_container_width=True):
             with st.spinner("Изображение обрабатывается локальной моделью..."):
                 files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
                 data = {"preprocess": str(apply_preprocessing).lower()}
-                endpoint = "/recognize-page" if recognition_mode == "Страница" else "/recognize"
-                response = requests.post(f"{API_URL}{endpoint}", files=files, data=data, timeout=300)
+                response = requests.post(f"{API_URL}/recognize", files=files, data=data, timeout=300)
 
             if response.ok:
                 st.session_state["last_result"] = response.json()
