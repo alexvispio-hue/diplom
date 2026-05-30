@@ -11,13 +11,18 @@ class CyrillicSample:
     text: str
 
 
-def load_cyrillic_samples(labels_path: Path, images_dir: Path, limit: int | None = None) -> list[CyrillicSample]:
+def load_cyrillic_samples(
+    labels_path: Path,
+    images_dir: Path,
+    limit: int | None = None,
+    check_files: bool = True,
+) -> list[CyrillicSample]:
     samples: list[CyrillicSample] = []
     with labels_path.open("r", encoding="utf-8", newline="") as source:
         reader = csv.reader(source, delimiter="\t")
         for filename, text in reader:
             image_path = images_dir / filename
-            if image_path.exists():
+            if not check_files or image_path.exists():
                 samples.append(CyrillicSample(image_path=image_path, text=text))
             if limit is not None and len(samples) >= limit:
                 break
