@@ -34,5 +34,5 @@ ketos -d cuda segtrain -f xml training_data/*.xml
 
 Официальная документация:
 
-- [Kraken: Page Segmentation](https://kraken.re/main/advanced/segmentation.html)
+- [Kraken: Page Segmentation](https://kraken.re/6.0.0/advanced/segmentation.html)
 - [Kraken: Segmentation Training](https://kraken.re/6.0.0/training/segtrain.html)
