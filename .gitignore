@@ -18,6 +18,8 @@ venv/
 # Test and tooling caches
 .pytest_cache/
 pytest-cache-files-*/
+.pytest_*/
+**/.pytest_*/
 .mypy_cache/
 .ruff_cache/
 .coverage
@@ -38,11 +40,27 @@ data/evaluation/processed/*
 data/evaluation/processed_cyrillic/*
 data/evaluation/results*.csv
 data/evaluation/*.csv
+data/evaluation/*/
 data/training/*
+data/training_logs/
 data/runtime/*
+data/defense_materials/
 
 # Locally downloaded model artifacts
 models/*
+
+# Generated documents and legacy diploma materials
+docs/docx_tmp/
+docs/*.docx
+docs/acceptance_audit.md
+docs/project_readiness_report.md
+docs/defense_*
+docs/technical_speech_notes_by_slides.*
+docs/terminology_explained_for_defense.md
+scripts/build_code_appendix_docx.py
+scripts/build_defense_speech_docx.py
+scripts/build_vkr_docx.py
+финалка/
 
 # Keep project placeholders and examples
 !models/README.md
