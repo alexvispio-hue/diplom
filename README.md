@@ -26,6 +26,8 @@
 
 План продуктового развития: [docs/product_roadmap.md](docs/product_roadmap.md).
 
+Действующее ТЗ до версии 1.0: [docs/product_technical_specification.md](docs/product_technical_specification.md).
+
 ## Архитектура
 
 ```text
