@@ -56,9 +56,25 @@ def _run_lightweight_migrations() -> None:
             connection.execute(
                 text("ALTER TABLE recognition_records ADD COLUMN line_image_paths_json TEXT")
             )
+        if "line_bboxes_json" not in columns:
+            connection.execute(
+                text("ALTER TABLE recognition_records ADD COLUMN line_bboxes_json TEXT")
+            )
         if "feedback_rating" not in columns:
             connection.execute(
                 text("ALTER TABLE recognition_records ADD COLUMN feedback_rating VARCHAR(32)")
+            )
+        if "needs_review" not in columns:
+            connection.execute(
+                text("ALTER TABLE recognition_records ADD COLUMN needs_review BOOLEAN NOT NULL DEFAULT 0")
+            )
+        if "review_notes_json" not in columns:
+            connection.execute(
+                text("ALTER TABLE recognition_records ADD COLUMN review_notes_json TEXT")
+            )
+        if "corrected_text" not in columns:
+            connection.execute(
+                text("ALTER TABLE recognition_records ADD COLUMN corrected_text TEXT")
             )
         if "feedback_sample_path" not in columns:
             connection.execute(

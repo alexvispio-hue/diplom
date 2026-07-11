@@ -18,8 +18,8 @@ nohup python -u scripts/train_trocr_ru.py \
   --extra-train-dataset-dir data/training/school_notebooks_words \
   --extra-train-dataset-dir data/training/synthetic_ru_words \
   --eval-dataset-dir data/training/school_notebooks_words \
-  --base-model models/trocr-cyrillic-finetuned \
-  --output-dir models/trocr-cyrillic-mixed \
+  --base-model models/trocr-cyrillic-mixed-epoch-2 \
+  --output-dir models/trocr-cyrillic-mixed-epoch-3 \
   --epochs 1 \
   --batch-size 24 \
   --learning-rate 1e-5 \

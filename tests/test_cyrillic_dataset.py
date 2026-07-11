@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 from PIL import Image
 
 from app.training.cyrillic_dataset import CyrillicSample, TrOCRTrainingDataset, load_cyrillic_samples
@@ -27,17 +28,13 @@ def test_training_dataset_applies_transform(tmp_path: Path) -> None:
             pad_token_id = 0
 
             def __call__(self, *_args, **_kwargs):
-                import torch
-
-                return type("Tokens", (), {"input_ids": torch.tensor([[1, 0]])})
+                return type("Tokens", (), {"input_ids": np.array([[1, 0]])})
 
         tokenizer = Tokenizer()
 
         def __call__(self, images, **_kwargs):
-            import torch
-
             assert images.size == (40, 20)
-            return type("Pixels", (), {"pixel_values": torch.zeros((1, 3, 20, 40))})
+            return type("Pixels", (), {"pixel_values": np.zeros((1, 3, 20, 40))})
 
     dataset = TrOCRTrainingDataset(
         [CyrillicSample(image_path=image_path, text="текст")],
