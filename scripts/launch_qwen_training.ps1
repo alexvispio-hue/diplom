@@ -1,6 +1,6 @@
 param(
     [string]$Model = "Qwen/Qwen3-VL-2B-Instruct",
-    [string]$InitialAdapter = "models\qwen-vl-school-hwr200-pages-lora",
+    [string]$InitialAdapter = "models\qwen-vl-school-pages-lora",
     [string]$OutputDirectory = "models\qwen-vl-school-hwr200-full-pages-lora",
     [string]$RunName = "qwen3-vl-2b-hwr200-full-v1",
     [int]$Epochs = 1,

@@ -18,7 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--review-metadata", type=Path, default=Path("data/training/hwr200_qwen_pages_full/page_metadata.jsonl"))
     parser.add_argument("--dataset-manifest", type=Path, default=Path("manifests/datasets/hwr200-pages-v1.json"))
     parser.add_argument("--model", default="Qwen/Qwen3-VL-2B-Instruct")
-    parser.add_argument("--initial-adapter", type=Path, default=Path("models/qwen-vl-school-hwr200-pages-lora"))
+    parser.add_argument("--initial-adapter", type=Path, default=Path("models/qwen-vl-school-pages-lora"))
     parser.add_argument("--output", type=Path, default=Path("data/runtime/training_logs/qwen_training_preflight.json"))
     parser.add_argument("--minimum-vram-gb", type=float, default=14.0)
     parser.add_argument("--skip-runtime", action="store_true")

@@ -18,6 +18,8 @@
 - split по авторам не пересекается: 26 634 train, 3264 val и 3132 test примеров;
 - 4283 страницы помечены для дополнительной ручной проверки, но структурные проверки датасета пройдены;
 - существующий адаптер `qwen-vl-school-hwr200-pages-lora` обучался один короткий цикл, 108 optimizer steps, без validation-метрики и выбора лучшего checkpoint.
+- зафиксирована цепочка Qwen-моделей: `qwen-vl-ocr-lora` — smoke-прогон на 3 примерах, `qwen-vl-school-pages-lora` — модель после обучения на schooldataset, `qwen-vl-school-hwr200-pages-lora` — короткое продолжение на HWR200 от школьного адаптера;
+- основной полный HWR200-запуск настроен от `qwen-vl-school-pages-lora`; короткий HWR200-адаптер используется только как отдельный warm-start для сравнения.
 - реализованы фоновые jobs, редактор документов, model registry, диагностика, модельные загрузки, gold-review workflow и Windows release packaging;
 - текущие Qwen adapters зарегистрированы как `experimental`; production остаётся за проверенной TrOCR-моделью;
 

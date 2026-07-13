@@ -70,7 +70,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $StagingRoot "scripts") | O
     Copy-Item -LiteralPath (Join-Path $ProjectRoot "scripts\$_") -Destination (Join-Path $StagingRoot "scripts")
 }
 New-Item -ItemType Directory -Force -Path (Join-Path $StagingRoot "docs") | Out-Null
-@("installation.md", "training.md", "next_steps.md", "product_roadmap.md", "product_technical_specification.md", "architecture.md", "page_recognition.md") | ForEach-Object {
+@("installation.md", "training.md", "next_steps.md", "product_roadmap.md", "product_technical_specification.md", "architecture.md", "page_recognition.md", "model_lineage.md") | ForEach-Object {
     Copy-Item -LiteralPath (Join-Path $ProjectRoot "docs\$_") -Destination (Join-Path $StagingRoot "docs")
 }
 New-Item -ItemType Directory -Force -Path (Join-Path $StagingRoot "models") | Out-Null

@@ -447,7 +447,16 @@ powershell -ExecutionPolicy Bypass -File scripts\launch_qwen_training.ps1 -Prefl
 powershell -ExecutionPolicy Bypass -File scripts\launch_qwen_training.ps1
 ```
 
-По умолчанию запускается один полный epoch с продолжением от `models\qwen-vl-school-hwr200-pages-lora`, `batch_size=1`, gradient accumulation `8`, BF16, gradient checkpointing и сохранением validation checkpoints. Для запуска нового адаптера от базовой Qwen используйте `-FromBaseModel`.
+По умолчанию запускается один полный epoch с продолжением от `models\qwen-vl-school-pages-lora`, `batch_size=1`, gradient accumulation `8`, BF16, gradient checkpointing и сохранением validation checkpoints. Это модель после обучения на schooldataset. Адаптер `models\qwen-vl-school-hwr200-pages-lora` является отдельным коротким HWR200 warm-start экспериментом и не используется основным запуском. Для запуска нового адаптера от базовой Qwen используйте `-FromBaseModel`.
+
+Для сравнения с warm-start вариантом можно отдельно запустить полный HWR200-прогон от короткого адаптера:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\launch_qwen_training.ps1 `
+  -InitialAdapter models\qwen-vl-school-hwr200-pages-lora `
+  -OutputDirectory models\qwen-vl-hwr200-warm-start-full-pages-lora `
+  -RunName qwen3-vl-2b-hwr200-warm-start-v1
+```
 
 Прерванный run продолжается без пересоздания manifest:
 
