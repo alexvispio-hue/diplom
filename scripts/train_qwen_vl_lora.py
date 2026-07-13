@@ -20,6 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from app.training.run_manifest import (
     atomic_write_json,
     create_run_manifest,
+    read_manifest,
     update_run_manifest,
 )
 from app.services.benchmark_service import summarize_predictions
@@ -428,6 +429,8 @@ def _manifest_path(args: argparse.Namespace) -> Path:
 
 def prepare_manifest(args: argparse.Namespace) -> Path:
     manifest_path = _manifest_path(args)
+    if args.resume_from_checkpoint and manifest_path.is_file():
+        return manifest_path
     create_run_manifest(
         manifest_path,
         project_root=PROJECT_ROOT,
@@ -459,11 +462,27 @@ def main(argv: list[str] | None = None) -> None:
     print(f"loaded eval examples: {len(eval_examples)}")
 
     manifest_path = prepare_manifest(args)
-    update_run_manifest(
-        manifest_path,
-        "validated",
-        metrics={"train_examples": len(train_examples), "eval_examples": len(eval_examples)},
-    )
+    current_manifest = read_manifest(manifest_path)
+    current_status = current_manifest.get("status", "created")
+    if args.resume_from_checkpoint:
+        if current_status == "failed":
+            update_run_manifest(manifest_path, "validated")
+        elif current_status not in {"validated", "interrupted"}:
+            raise ValueError(
+                f"Cannot resume a run with manifest status '{current_status}'. "
+                "Resume only interrupted or failed runs."
+            )
+        update_run_manifest(
+            manifest_path,
+            current_status if current_status == "interrupted" else "validated",
+            metrics={"train_examples": len(train_examples), "eval_examples": len(eval_examples)},
+        )
+    else:
+        update_run_manifest(
+            manifest_path,
+            "validated",
+            metrics={"train_examples": len(train_examples), "eval_examples": len(eval_examples)},
+        )
     if args.dry_run:
         for example in train_examples[:3]:
             print(f"image: {extract_image_path(example)}")

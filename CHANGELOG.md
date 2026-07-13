@@ -9,5 +9,7 @@
 - Added gold benchmark review workflow and explicit consent for feedback training exports.
 - Added Lite, Full and Developer installation profiles, diagnostics and Inno Setup configuration.
 - Added reproducible dataset/run manifests, validation-aware trainer controls and CI profiles.
+- Added a dataset/runtime preflight and a single-command Qwen HWR200 launcher with safe resume handling.
+- Added complete baseline modes, prediction-set alignment checks and Developer release training tooling.
 
 The Qwen page adapter remains experimental until a full training run and quality gate are completed.

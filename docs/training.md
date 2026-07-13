@@ -424,6 +424,39 @@ python scripts/train_qwen_vl_lora.py \
 
 Для реального обучения нужна GPU-среда и установленные зависимости из `requirements-ml.txt`.
 
+## Единый запуск полного HWR200 обучения
+
+Для подготовленного page-level набора рекомендуется использовать единый PowerShell-launcher. Он перед обучением автоматически:
+
+- повторно проверяет validation report и целостность HWR200;
+- сверяет SHA-256 train/val JSONL и metadata с dataset manifest;
+- проверяет наличие всех файлов изображений;
+- проверяет зависимости, CUDA, VRAM и BF16;
+- проверяет локальный кэш `Qwen/Qwen3-VL-2B-Instruct`;
+- проверяет исходный LoRA-адаптер и сохраняет preflight report.
+
+Сначала можно выполнить только проверки:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\launch_qwen_training.ps1 -PreflightOnly
+```
+
+После отдельного подтверждения запуска обучения используется одна команда:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\launch_qwen_training.ps1
+```
+
+По умолчанию запускается один полный epoch с продолжением от `models\qwen-vl-school-hwr200-pages-lora`, `batch_size=1`, gradient accumulation `8`, BF16, gradient checkpointing и сохранением validation checkpoints. Для запуска нового адаптера от базовой Qwen используйте `-FromBaseModel`.
+
+Прерванный run продолжается без пересоздания manifest:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\launch_qwen_training.ps1 -Resume
+```
+
+Launcher создаёт `data/runtime/training_logs/qwen_training_preflight.json`, `run_manifest.json`, train/eval metrics и pipeline status. После завершения обучения evaluation и quality gate остаются отдельным этапом и не должны автоматически переводить адаптер в production.
+
 В обучающем pipeline TrOCR при `--augment` используется `HandwritingPhotoAugmenter`. Он имитирует:
 
 - изменение яркости и контраста;

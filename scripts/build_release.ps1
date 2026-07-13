@@ -50,11 +50,27 @@ New-Item -ItemType Directory -Force -Path $StagingRoot | Out-Null
 }
 
 New-Item -ItemType Directory -Force -Path (Join-Path $StagingRoot "scripts") | Out-Null
-@("install_windows.ps1", "system_diagnostics.py", "manage_models.py", "audit_acceptance.py") | ForEach-Object {
+@(
+    "install_windows.ps1",
+    "system_diagnostics.py",
+    "manage_models.py",
+    "audit_acceptance.py",
+    "preflight_qwen_training.py",
+    "launch_qwen_training.ps1",
+    "run_hwr200_full_training.ps1",
+    "run_baseline_suite.ps1",
+    "run_ocr_benchmark.py",
+    "evaluate_ocr_predictions.py",
+    "build_gold_benchmark.py",
+    "build_dataset_manifest.py",
+    "train_qwen_vl_lora.py",
+    "validate_hwr200_full_dataset.py",
+    "prepare_hwr200_full_qwen.py"
+) | ForEach-Object {
     Copy-Item -LiteralPath (Join-Path $ProjectRoot "scripts\$_") -Destination (Join-Path $StagingRoot "scripts")
 }
 New-Item -ItemType Directory -Force -Path (Join-Path $StagingRoot "docs") | Out-Null
-@("installation.md", "product_roadmap.md", "product_technical_specification.md", "architecture.md", "page_recognition.md") | ForEach-Object {
+@("installation.md", "training.md", "next_steps.md", "product_roadmap.md", "product_technical_specification.md", "architecture.md", "page_recognition.md") | ForEach-Object {
     Copy-Item -LiteralPath (Join-Path $ProjectRoot "docs\$_") -Destination (Join-Path $StagingRoot "docs")
 }
 New-Item -ItemType Directory -Force -Path (Join-Path $StagingRoot "models") | Out-Null

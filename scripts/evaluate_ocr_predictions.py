@@ -18,6 +18,18 @@ def read_jsonl(path: Path) -> list[dict]:
         return [json.loads(line) for line in source if line.strip()]
 
 
+def ensure_same_benchmark(candidate_records: list[dict], baseline_records: list[dict]) -> None:
+    candidate_ids = {item.get("benchmark_id") for item in candidate_records}
+    baseline_ids = {item.get("benchmark_id") for item in baseline_records}
+    if candidate_ids != baseline_ids:
+        missing = sorted(baseline_ids - candidate_ids)
+        unexpected = sorted(candidate_ids - baseline_ids)
+        raise ValueError(
+            "Candidate and baseline predictions cover different benchmark pages. "
+            f"Missing: {missing[:5]}; unexpected: {unexpected[:5]}"
+        )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate OCR prediction JSONL without running a model.")
     parser.add_argument("--predictions", type=Path, required=True)
@@ -37,6 +49,7 @@ def main() -> None:
     payload = {"summary": candidate.to_dict()}
     if args.baseline:
         baseline_records = read_jsonl(args.baseline)
+        ensure_same_benchmark(candidate_records, baseline_records)
         baseline = summarize_predictions(baseline_records)
         school_candidate_records = [
             item for item in candidate_records if (item.get("source_dataset") or "").casefold() == "schooldataset"

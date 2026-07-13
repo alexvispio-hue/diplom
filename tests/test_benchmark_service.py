@@ -1,4 +1,5 @@
 from app.services.benchmark_service import evaluate_quality_gate, summarize_predictions
+from scripts.evaluate_ocr_predictions import ensure_same_benchmark
 
 
 def test_benchmark_summary_and_quality_gate() -> None:
@@ -26,3 +27,10 @@ def test_benchmark_summary_and_quality_gate() -> None:
     assert candidate.exact_page_rate == 1.0
     assert candidate.p95_latency_ms == 1200
     assert gate.passed is True
+
+
+def test_prediction_alignment_is_required_for_quality_gate() -> None:
+    ensure_same_benchmark(
+        [{"benchmark_id": "page-1"}],
+        [{"benchmark_id": "page-1"}],
+    )

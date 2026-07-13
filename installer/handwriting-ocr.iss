@@ -40,6 +40,17 @@ Source: "{#ProjectRoot}\scripts\install_windows.ps1"; DestDir: "{app}\scripts"; 
 Source: "{#ProjectRoot}\scripts\system_diagnostics.py"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "{#ProjectRoot}\scripts\manage_models.py"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "{#ProjectRoot}\scripts\audit_acceptance.py"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "{#ProjectRoot}\scripts\preflight_qwen_training.py"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "{#ProjectRoot}\scripts\launch_qwen_training.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "{#ProjectRoot}\scripts\run_hwr200_full_training.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "{#ProjectRoot}\scripts\run_baseline_suite.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "{#ProjectRoot}\scripts\run_ocr_benchmark.py"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "{#ProjectRoot}\scripts\evaluate_ocr_predictions.py"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "{#ProjectRoot}\scripts\build_gold_benchmark.py"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "{#ProjectRoot}\scripts\build_dataset_manifest.py"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "{#ProjectRoot}\scripts\train_qwen_vl_lora.py"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "{#ProjectRoot}\scripts\validate_hwr200_full_dataset.py"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "{#ProjectRoot}\scripts\prepare_hwr200_full_qwen.py"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "{#ProjectRoot}\requirements-base.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ProjectRoot}\requirements-trocr.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ProjectRoot}\requirements-qwen.txt"; DestDir: "{app}"; Flags: ignoreversion
