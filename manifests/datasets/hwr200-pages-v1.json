@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "name": "hwr200-pages",
+  "version": "v1",
+  "created_at": "2026-07-11T19:01:36+00:00",
+  "source": "https://huggingface.co/datasets/AntiplagiatCompany/HWR200",
+  "source_revision": null,
+  "license": "apache-2.0",
+  "conversion_commit": "fa1e9b364cb9c2c81dad9e1fa1939264901c48f7",
+  "split_strategy": "author-disjoint; all variants of a page remain in one split",
+  "splits": {
+    "train": {
+      "path": "train.jsonl",
+      "examples": 26634,
+      "sha256": "4992ff310ee467e7d75ef6dafc5614f01213ef5f442e403e3000938e56da27ed"
+    },
+    "val": {
+      "path": "val.jsonl",
+      "examples": 3264,
+      "sha256": "7bc5238aa02342a94020afcced692c710088173919ae6a286e9bf169851d473b"
+    },
+    "test": {
+      "path": "test.jsonl",
+      "examples": 3132,
+      "sha256": "cb6c261133486fc0538a6f4534815cafa04475dea04c0ad12a044848898b4074"
+    }
+  },
+  "metadata": {
+    "path": "page_metadata.jsonl",
+    "examples": 33030,
+    "sha256": "4ad1e02060b844032cca2d52de867b63a00accf7b45f13d87c253d18b42a677b"
+  },
+  "validation": {
+    "passed": true,
+    "checks": {
+      "all_documents_annotated": true,
+      "all_condition_counts_match": true,
+      "all_page_labels_present": true,
+      "all_documents_reconstruct_reference": true,
+      "all_three_variants_exported": true,
+      "all_images_exist": true,
+      "all_targets_nonempty": true,
+      "all_examples_have_metadata": true,
+      "all_variants_share_target": true,
+      "author_splits_disjoint": true,
+      "image_paths_unique": true,
+      "no_ocr_draft_errors": true,
+      "reasonable_line_counts": true
+    },
+    "documents": 3000,
+    "pages": 11010,
+    "expected_pages": 11010,
+    "images": 33030,
+    "expected_images": 33030,
+    "split_examples": {
+      "train": 26634,
+      "val": 3264,
+      "test": 3132
+    },
+    "review_pages": 4283,
+    "maximum_line_count": 65,
+    "minimum_line_count": 1,
+    "line_count_outliers": [],
+    "reconstructed_mismatches": [],
+    "missing_images": [],
+    "variant_mismatches": []
+  }
+}

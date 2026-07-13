@@ -19,13 +19,27 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip samples without corrected_text. Recommended before adding data to training.",
     )
+    parser.add_argument(
+        "--include-unapproved",
+        action="store_true",
+        help="Include reviewed samples without explicit training consent.",
+    )
     return parser.parse_args()
 
 
-def iter_feedback_examples(feedback_dir: Path, only_reviewed: bool = True) -> list[dict]:
+def iter_feedback_examples(
+    feedback_dir: Path,
+    only_reviewed: bool = True,
+    *,
+    only_approved: bool = True,
+) -> list[dict]:
     examples: list[dict] = []
     for metadata_path in sorted(feedback_dir.glob("recognition_*.json")):
         metadata = json.loads(metadata_path.read_text(encoding="utf-8-sig"))
+        if only_approved and (
+            not metadata.get("training_approved") or metadata.get("training_excluded")
+        ):
+            continue
         corrected_text = (metadata.get("corrected_text") or "").strip()
         if only_reviewed and not corrected_text:
             continue
@@ -42,6 +56,7 @@ def iter_feedback_examples(feedback_dir: Path, only_reviewed: bool = True) -> li
                 "recognition_mode": metadata.get("recognition_mode") or "",
                 "model_name": metadata.get("model_name") or "",
                 "rating": metadata.get("rating") or "",
+                "training_approved": bool(metadata.get("training_approved")),
             }
         )
     return examples
@@ -49,7 +64,16 @@ def iter_feedback_examples(feedback_dir: Path, only_reviewed: bool = True) -> li
 
 def write_csv(examples: list[dict], output_csv: Path) -> None:
     output_csv.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = ["image_path", "text", "recognized_text", "recognition_id", "recognition_mode", "model_name", "rating"]
+    fieldnames = [
+        "image_path",
+        "text",
+        "recognized_text",
+        "recognition_id",
+        "recognition_mode",
+        "model_name",
+        "rating",
+        "training_approved",
+    ]
     with output_csv.open("w", encoding="utf-8", newline="") as target:
         writer = csv.DictWriter(target, fieldnames=fieldnames)
         writer.writeheader()
@@ -74,7 +98,11 @@ def write_qwen_jsonl(examples: list[dict], output_jsonl: Path) -> None:
 
 def main() -> None:
     args = parse_args()
-    examples = iter_feedback_examples(args.feedback_dir, only_reviewed=args.only_reviewed)
+    examples = iter_feedback_examples(
+        args.feedback_dir,
+        only_reviewed=args.only_reviewed,
+        only_approved=not args.include_unapproved,
+    )
     write_csv(examples, args.output_csv)
     print(f"saved examples: {len(examples)}")
     print(f"output: {args.output_csv}")

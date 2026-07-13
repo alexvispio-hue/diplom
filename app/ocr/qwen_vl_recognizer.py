@@ -10,12 +10,18 @@ from app.ocr.postprocessing import normalize_recognized_text
 class QwenVLRecognizer(BaseRecognizer):
     """Lazy local recognizer for Qwen-VL image-to-text OCR experiments."""
 
-    def __init__(self, model_name: str | None = None, prompt: str | None = None) -> None:
+    def __init__(
+        self,
+        model_name: str | None = None,
+        prompt: str | None = None,
+        adapter_dir: Path | None = None,
+    ) -> None:
         settings = get_settings()
         self.settings = settings
         self.model_source = model_name or settings.qwen_effective_model_name
         self.model_name = self.model_source
         self.prompt = prompt or "Recognize Russian handwritten text in the image. Return only the text."
+        self.adapter_dir = adapter_dir
         self._processor = None
         self._model = None
         self._torch = None
@@ -95,7 +101,7 @@ class QwenVLRecognizer(BaseRecognizer):
         self._model.eval()
 
     def _resolve_lora_adapter_dir(self) -> Path | None:
-        adapter_dir = self.settings.qwen_lora_adapter_dir
+        adapter_dir = self.adapter_dir or self.settings.qwen_lora_adapter_dir
         if adapter_dir is None:
             return None
 

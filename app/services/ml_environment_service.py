@@ -1,5 +1,7 @@
 import importlib.metadata
 import importlib.util
+import platform
+import sys
 
 
 REQUIRED_PACKAGES = {
@@ -39,11 +41,25 @@ def collect_status() -> dict:
     ]
     torch_cuda_available = None
     torch_device_count = None
+    cuda_version = None
+    gpu_devices = []
     if next(item for item in packages if item["package"] == "torch")["installed"]:
         import torch
 
         torch_cuda_available = bool(torch.cuda.is_available())
         torch_device_count = int(torch.cuda.device_count())
+        cuda_version = torch.version.cuda
+        if torch_cuda_available:
+            for index in range(torch_device_count):
+                properties = torch.cuda.get_device_properties(index)
+                gpu_devices.append(
+                    {
+                        "index": index,
+                        "name": properties.name,
+                        "total_memory_bytes": int(properties.total_memory),
+                        "compute_capability": f"{properties.major}.{properties.minor}",
+                    }
+                )
 
     return {
         "packages": packages,
@@ -56,6 +72,10 @@ def collect_status() -> dict:
         "ready_for_qwen_lora": all(item["installed"] for item in packages),
         "torch_cuda_available": torch_cuda_available,
         "torch_device_count": torch_device_count,
+        "cuda_version": cuda_version,
+        "gpu_devices": gpu_devices,
+        "python_version": sys.version.split()[0],
+        "platform": platform.platform(),
     }
 
 

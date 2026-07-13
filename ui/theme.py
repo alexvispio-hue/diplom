@@ -49,7 +49,7 @@ APP_CSS = """
         color: var(--app-ink) !important;
     }
     h1, h2, h3 { letter-spacing: 0; }
-    h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.25rem; }
+    h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.25rem; }
     h2 { font-size: 1.35rem; font-weight: 650; }
     h3 { font-size: 1.05rem; font-weight: 650; }
     p, label, [data-testid="stCaptionContainer"] { letter-spacing: 0; }
@@ -72,6 +72,11 @@ APP_CSS = """
         padding: 0.75rem 0.9rem;
     }
     [data-testid="stMetricValue"] { font-size: 1.45rem; }
+    [data-testid="stExpander"] [data-testid="stMetric"] {
+        background: transparent;
+        border: 0;
+        padding: 0.35rem 0;
+    }
     [data-testid="stDataFrame"] { border: 1px solid var(--app-border); }
 
     .stButton > button, .stDownloadButton > button {
@@ -85,6 +90,10 @@ APP_CSS = """
     }
     .stTextArea textarea, .stTextInput input, [data-baseweb="select"] > div {
         border-radius: 6px;
+    }
+    .stButton > button p, .stDownloadButton > button p, [data-testid="stLinkButton"] p {
+        overflow-wrap: anywhere;
+        white-space: normal;
     }
     .stTabs [data-baseweb="tab-list"] { gap: 1rem; }
     .stTabs [data-baseweb="tab"] { padding-left: 0; padding-right: 0; }

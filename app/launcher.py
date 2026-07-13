@@ -11,10 +11,13 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
+from app.core.config import get_settings
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 UI_SCRIPT = PROJECT_ROOT / "ui" / "streamlit_app.py"
-RUNTIME_DIR = PROJECT_ROOT / "data" / "runtime"
+SETTINGS = get_settings()
+RUNTIME_DIR = SETTINGS.logs_dir
 
 
 def parse_args() -> argparse.Namespace:
@@ -86,6 +89,7 @@ def run(host: str, backend_port: int, ui_port: int, open_browser: bool) -> None:
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
     env["OCR_API_URL"] = f"http://{host}:{backend_port}/api"
+    env["HF_HOME"] = str(SETTINGS.hf_home)
 
     backend_process = None
     ui_process = None
@@ -144,7 +148,7 @@ def run(host: str, backend_port: int, ui_port: int, open_browser: bool) -> None:
         while backend_process is not None or ui_process is not None:
             for process, name in ((backend_process, "backend"), (ui_process, "UI")):
                 if process is not None and process.poll() is not None:
-                    raise RuntimeError(f"{name} неожиданно завершился. Проверьте data/runtime/*.log.")
+                    raise RuntimeError(f"{name} неожиданно завершился. Проверьте {RUNTIME_DIR}.")
             time.sleep(0.5)
     except KeyboardInterrupt:
         pass

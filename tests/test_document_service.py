@@ -13,7 +13,10 @@ from app.services.document_service import (
     expand_document,
     export_docx,
     export_json,
+    export_searchable_pdf,
     export_text,
+    load_image_folder,
+    transform_image,
 )
 
 
@@ -82,3 +85,52 @@ def test_export_docx_contains_pages_and_text() -> None:
     assert "Первая строка" in text
     assert "Страница 2" in text
     assert "Вторая строка" in text
+
+
+def test_load_image_folder_uses_natural_order(tmp_path) -> None:
+    for name in ("page_10.png", "page_2.png", "page_1.png"):
+        Image.new("RGB", (12, 8), "white").save(tmp_path / name)
+
+    pages = load_image_folder(tmp_path)
+
+    assert [page.filename for page in pages] == ["page_1.png", "page_2.png", "page_10.png"]
+    assert [page.page_number for page in pages] == [1, 2, 3]
+
+
+def test_transform_image_rotates_and_crops() -> None:
+    payload = BytesIO()
+    Image.new("RGB", (30, 20), "white").save(payload, format="PNG")
+
+    transformed = transform_image(
+        payload.getvalue(),
+        rotation_degrees=90,
+        crop_box=(2, 3, 18, 27),
+    )
+
+    with Image.open(BytesIO(transformed)) as image:
+        assert image.size == (16, 24)
+
+
+def test_export_searchable_pdf_keeps_image_and_text_layer() -> None:
+    payload = BytesIO()
+    Image.new("RGB", (240, 120), "white").save(payload, format="PNG")
+    pages = [
+        ExportPage(
+            page_number=1,
+            filename="page.png",
+            text="Searchable page text",
+            line_coordinates=[
+                {"line_number": 1, "x1": 10, "y1": 10, "x2": 220, "y2": 40}
+            ],
+        )
+    ]
+
+    content = export_searchable_pdf(pages, {1: payload.getvalue()})
+
+    document = fitz.open(stream=content, filetype="pdf")
+    try:
+        assert document.page_count == 1
+        assert "Searchable page text" in document[0].get_text().replace("\xa0", " ")
+        assert document[0].get_images(full=True)
+    finally:
+        document.close()

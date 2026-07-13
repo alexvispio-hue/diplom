@@ -23,6 +23,7 @@ class FeedbackService:
         rating: str,
         db: Session,
         corrected_text: str | None = None,
+        include_for_training: bool = False,
     ) -> RecognitionRecord:
         if rating not in VALID_RATINGS:
             raise ValueError("Неизвестная оценка распознавания.")
@@ -30,11 +31,31 @@ class FeedbackService:
         record.feedback_rating = rating
         record.corrected_text = self._normalize_corrected_text(corrected_text)
         record.feedback_created_at = datetime.now(UTC)
+        record.feedback_training_approved = bool(include_for_training)
+        record.feedback_training_excluded = False
         if rating in PROBLEM_RATINGS:
             self._save_problem_sample(record)
         elif record.feedback_sample_path:
             self._remove_problem_sample(record)
 
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+        return record
+
+    def exclude_from_training(self, record: RecognitionRecord, db: Session) -> RecognitionRecord:
+        record.feedback_training_approved = False
+        record.feedback_training_excluded = True
+        if record.feedback_sample_path:
+            metadata_path = self.settings.feedback_dir / "problems" / f"recognition_{record.id}.json"
+            if metadata_path.is_file():
+                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                metadata["training_approved"] = False
+                metadata["training_excluded"] = True
+                metadata_path.write_text(
+                    json.dumps(metadata, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
         db.add(record)
         db.commit()
         db.refresh(record)
@@ -69,6 +90,8 @@ class FeedbackService:
             metadata.setdefault("review_notes", [])
             metadata.setdefault("corrected_text", None)
             metadata.setdefault("corrected_text_filename", None)
+            metadata.setdefault("training_approved", False)
+            metadata.setdefault("training_excluded", False)
             samples.append(metadata)
         return samples
 
@@ -136,6 +159,8 @@ class FeedbackService:
             "preprocessing_applied": record.preprocessing_applied,
             "created_at": record.created_at.isoformat(),
             "feedback_created_at": record.feedback_created_at.isoformat(),
+            "training_approved": bool(record.feedback_training_approved),
+            "training_excluded": bool(record.feedback_training_excluded),
         }
         metadata_path = problems_dir / f"recognition_{record.id}.json"
         metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")

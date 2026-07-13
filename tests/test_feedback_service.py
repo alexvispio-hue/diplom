@@ -55,7 +55,13 @@ def test_partial_feedback_saves_problem_sample_with_page_artifacts(tmp_path: Pat
 
         service = FeedbackService()
         service.settings.feedback_dir = tmp_path / "feedback"
-        service.save(record, "partial", db, corrected_text="corrected text")
+        service.save(
+            record,
+            "partial",
+            db,
+            corrected_text="corrected text",
+            include_for_training=True,
+        )
 
     problems_dir = tmp_path / "feedback" / "problems"
     saved_image = problems_dir / f"recognition_{record.id}.png"
@@ -180,3 +186,4 @@ def test_list_problem_samples_supports_legacy_metadata(tmp_path: Path) -> None:
 
     assert samples[0]["recognition_mode"] == "fragment"
     assert samples[0]["line_count"] == 1
+    assert samples[0]["training_approved"] is False

@@ -19,6 +19,7 @@ def test_exports_only_reviewed_feedback_examples(tmp_path: Path) -> None:
                 "recognition_mode": "qwen_page",
                 "model_name": "qwen",
                 "rating": "partial",
+                "training_approved": True,
             },
             ensure_ascii=False,
         ),
@@ -33,6 +34,7 @@ def test_exports_only_reviewed_feedback_examples(tmp_path: Path) -> None:
                 "recognized_text": "без проверки",
                 "corrected_text": None,
                 "rating": "mismatch",
+                "training_approved": False,
             },
             ensure_ascii=False,
         ),
@@ -58,6 +60,7 @@ def test_writes_feedback_csv(tmp_path: Path) -> None:
                 "recognition_mode": "trocr_lines",
                 "model_name": "trocr",
                 "rating": "partial",
+                "training_approved": True,
             }
         ],
         output_csv,
@@ -81,6 +84,7 @@ def test_writes_qwen_jsonl_from_reviewed_feedback(tmp_path: Path) -> None:
                 "recognition_mode": "qwen_page",
                 "model_name": "qwen",
                 "rating": "partial",
+                "training_approved": True,
             }
         ],
         output_jsonl,
@@ -115,3 +119,23 @@ def test_exports_feedback_metadata_with_utf8_sig(tmp_path: Path) -> None:
 
     assert len(examples) == 1
     assert examples[0]["text"] == "corrected"
+
+
+def test_feedback_export_skips_explicitly_excluded_sample(tmp_path: Path) -> None:
+    feedback_dir = tmp_path / "problems"
+    feedback_dir.mkdir()
+    (feedback_dir / "recognition_1.jpg").write_bytes(b"image")
+    (feedback_dir / "recognition_1.json").write_text(
+        json.dumps(
+            {
+                "recognition_id": 1,
+                "image_filename": "recognition_1.jpg",
+                "corrected_text": "text",
+                "training_approved": True,
+                "training_excluded": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert iter_feedback_examples(feedback_dir) == []

@@ -37,18 +37,26 @@ try {
 
     Write-PipelineStatus -Phase "train" -Status "running" -Message "Fine-tuning Qwen on the complete validated HWR200 page dataset."
     & $Python "scripts\train_qwen_vl_lora.py" `
-        --dataset "data\training\hwr200_qwen_pages_full\train.jsonl" `
+        --train-dataset "data\training\hwr200_qwen_pages_full\train.jsonl" `
+        --eval-dataset "data\training\hwr200_qwen_pages_full\val.jsonl" `
+        --dataset-manifest "manifests\datasets\hwr200-pages-v1.json" `
+        --review-metadata "data\training\hwr200_qwen_pages_full\page_metadata.jsonl" `
+        --review-policy all `
+        --variant-policy all `
         --initial-adapter "models\qwen-vl-school-hwr200-pages-lora" `
         --output-dir "models\qwen-vl-school-hwr200-full-pages-lora" `
+        --run-name "qwen3-vl-2b-hwr200-full-v1" `
         --epochs 1 `
         --batch-size 1 `
-        --gradient-accumulation-steps 2 `
+        --gradient-accumulation-steps 8 `
         --learning-rate 1e-5 `
-        --max-image-side 512 `
+        --max-image-side 768 `
         --gradient-checkpointing `
-        --fp16 `
+        --bf16 `
         --logging-steps 25 `
-        --save-steps 1000 `
+        --save-steps 250 `
+        --eval-steps 250 `
+        --early-stopping-patience 3 `
         --local-files-only
     if ($LASTEXITCODE -ne 0) { throw "Full HWR200 Qwen training failed with exit code $LASTEXITCODE." }
 

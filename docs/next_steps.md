@@ -1,16 +1,33 @@
 # Следующие шаги
 
-Полный порядок работ находится в [product_roadmap.md](product_roadmap.md), обязательные требования и критерии приёмки находятся в [product_technical_specification.md](product_technical_specification.md).
+Инженерная часть проекта подготовлена без запуска нового Qwen-дообучения. Текущее состояние фиксируется так:
 
-Ближайшая последовательность:
+## Уже сделано
 
-1. Добавить CI и разделить статусы smoke, training, evaluation, candidate и production.
-2. Добавить в Qwen trainer validation, лучший checkpoint, resume и run manifest.
-3. Зафиксировать вручную проверенный gold benchmark и измерить текущие baseline.
-4. Выполнить 100-step benchmark на RTX 5070 Ti и уточнить время полной эпохи.
-5. Выполнить pilot, 10% run и только затем полное обучение Qwen3-VL-2B.
-6. Принять или отклонить модель по CER/WER, latency, VRAM и regression-набору.
-7. После принятия модели реализовать background jobs, overlay строк, autosave и searchable PDF.
-8. Проверить installer и модельный профиль на чистом компьютере Windows.
+- подготовлен и проверен полный HWR200 page-level dataset;
+- добавлены dataset/run manifests, review policy и group-aware sampler;
+- trainer получил validation, best-checkpoint, resume, NaN/OOM health checks и generation evaluation;
+- добавлены benchmark runner, quality gate, gold-review workflow и regression subset;
+- реализованы фоновые OCR jobs, pause/resume/cancel/retry и восстановление после перезапуска;
+- реализованы импорт папки, подготовка изображения, overlay строк, редактор документа, autosave, revisions и searchable PDF;
+- добавлены model registry, checksum verification, promotion/rollback, model downloads и диагностика;
+- добавлены Lite/Full/Developer installation profiles, Inno Setup и reproducible release ZIP;
+- CI проверяет ruff, compileall, pytest, dependency audit и release archive.
 
-Подготовка полного HWR200 уже завершена: 3000 документов, 11 010 страниц, 33 030 вариантов; validation report имеет статус `passed`. Следующий ML-шаг начинается не с повторной подготовки данных, а с доработки trainer и фиксации benchmark.
+## Что осталось до запуска обучения
+
+1. В интерфейсе `Gold benchmark` вручную проверить 200 кандидатных страниц и финализировать immutable gold manifest.
+2. Запустить baseline suite на финальном gold-наборе для TrOCR, Qwen base и hybrid. Это inference/evaluation, не обучение.
+3. Выполнить короткий 100-step performance run, чтобы уточнить скорость, VRAM и размер окна изображения.
+4. После отдельного подтверждения пользователя запустить pilot, 10% run и затем полный Qwen3-VL-2B training.
+5. Выполнить обязательную evaluation, сравнить CER/WER, exact-page rate, line metrics, latency, VRAM и regression subset.
+6. Продвинуть адаптер в `candidate`, затем в `production` только после quality gate.
+
+## Ограничения текущего состояния
+
+- полноценное обучение полного HWR200 в этой сессии не запускалось;
+- Qwen-адаптеры в `models` считаются `experimental`, Qwen не назначен production;
+- gold benchmark пока не имеет требуемого ручного подтверждения;
+- полный pytest и чистая установка на отдельном компьютере должны быть подтверждены в CI/на тестовой машине, потому что текущая среда блокирует доступ к части `%TEMP%`.
+
+Подробные требования: [product_technical_specification.md](product_technical_specification.md). Порядок релизной работы: [product_roadmap.md](product_roadmap.md).

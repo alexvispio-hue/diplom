@@ -10,9 +10,13 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.image_processing.page_segmentation import PageLineSegmenter
 from app.image_processing.preprocessing import ImagePreprocessor
+from app.image_processing.quality_analysis import ImageQualityAnalyzer
 from app.ocr.base import BaseRecognizer
 from app.ocr.factory import build_recognizer
 from app.services.feedback_service import FeedbackService
+from app.services.ml_environment_service import collect_status
+from app.services.model_registry_service import ModelRegistryService
+from app.services.model_router_service import ModelRouterService
 from app.storage.models import RecognitionRecord
 
 
@@ -22,6 +26,7 @@ PAGE_MODE_QWEN_PAGE = "qwen_page"
 PAGE_MODE_QWEN_LAYOUT = "qwen_layout"
 PAGE_MODE_COMPARE = "compare"
 PAGE_MODE_HYBRID = "hybrid"
+PAGE_MODE_AUTO = "auto"
 SUPPORTED_PAGE_MODES = {
     PAGE_MODE_TROCR_LINES,
     PAGE_MODE_QWEN_LINES,
@@ -29,6 +34,7 @@ SUPPORTED_PAGE_MODES = {
     PAGE_MODE_QWEN_LAYOUT,
     PAGE_MODE_COMPARE,
     PAGE_MODE_HYBRID,
+    PAGE_MODE_AUTO,
 }
 
 
@@ -38,12 +44,17 @@ class RecognitionService:
         recognizer: BaseRecognizer,
         preprocessor: ImagePreprocessor | None = None,
         page_segmenter: PageLineSegmenter | None = None,
+        quality_analyzer: ImageQualityAnalyzer | None = None,
+        model_router: ModelRouterService | None = None,
     ) -> None:
         self.settings = get_settings()
         self.recognizer = recognizer
         self._recognizers: dict[str, BaseRecognizer] = {"trocr": recognizer}
         self.preprocessor = preprocessor or ImagePreprocessor()
         self.page_segmenter = page_segmenter or PageLineSegmenter()
+        self.quality_analyzer = quality_analyzer or ImageQualityAnalyzer()
+        self.model_router = model_router or ModelRouterService()
+        self.model_registry = ModelRegistryService()
 
     async def recognize_upload(
         self,
@@ -65,6 +76,8 @@ class RecognitionService:
             raise ValueError(f"Размер файла превышает {self.settings.max_upload_size_mb} МБ.")
 
         start = time.perf_counter()
+        self._reset_cuda_peak_memory()
+        quality_report = self.quality_analyzer.analyze(source_path)
         recognition_path = source_path
         saved_processed_path = None
         if preprocessing_applied:
@@ -83,8 +96,12 @@ class RecognitionService:
             preprocessing_applied=preprocessing_applied,
             recognized_text=result.text,
             confidence=result.confidence,
+            reliability_score=result.confidence if result.confidence is not None else quality_report.score,
             model_name=result.model_name,
+            routing_reason="Fragment mode uses the configured TrOCR recognizer.",
+            image_quality_json=json.dumps(quality_report.to_dict(), ensure_ascii=False),
             processing_time_ms=elapsed_ms,
+            peak_vram_bytes=self._cuda_peak_memory(),
         )
         db.add(record)
         db.commit()
@@ -120,11 +137,20 @@ class RecognitionService:
             raise ValueError(f"Размер файла превышает {self.settings.max_upload_size_mb} МБ.")
 
         start = time.perf_counter()
+        self._reset_cuda_peak_memory()
+        model_override = model_name
+        quality_report = self.quality_analyzer.analyze(source_path)
         page_path = source_path
         if preprocessing_applied:
             self.preprocessor.preprocess(source_path, preprocessed_path)
             page_path = preprocessed_path
 
+        routing_decision = self.model_router.choose(
+            mode,
+            quality_report,
+            qwen_available=bool(collect_status().get("ready_for_qwen_inference")),
+        )
+        mode = routing_decision.selected_mode
         segmentation = None
         line_results = []
         recognized_text = ""
@@ -133,13 +159,13 @@ class RecognitionService:
         review_notes: list[dict] = []
 
         if mode == PAGE_MODE_QWEN_PAGE:
-            qwen = self._get_recognizer("qwen", model_name=model_name)
+            qwen = self._get_recognizer("qwen", model_name=model_override)
             page_result = self._recognize_full_page(qwen, page_path, max_tokens=max_tokens)
             recognized_text = page_result.text
             confidence = page_result.confidence
             model_name = page_result.model_name
         elif mode == PAGE_MODE_QWEN_LAYOUT:
-            qwen = self._get_recognizer("qwen", model_name=model_name)
+            qwen = self._get_recognizer("qwen", model_name=model_override)
             layout_result = self._recognize_layout(qwen, page_path, max_tokens=max_tokens)
             recognized_text = layout_result.text
             confidence = layout_result.confidence
@@ -152,13 +178,13 @@ class RecognitionService:
                 confidence = self._average_confidence([result.confidence for result in line_results])
                 model_name = line_results[0].model_name if line_results else self.recognizer.model_name
             elif mode == PAGE_MODE_QWEN_LINES:
-                qwen = self._get_recognizer("qwen", model_name=model_name)
+                qwen = self._get_recognizer("qwen", model_name=model_override)
                 line_results = [self._recognize_line(qwen, line.image_path, max_tokens=max_tokens) for line in segmentation.lines]
                 recognized_text = "\n".join(result.text.strip() for result in line_results if result.text.strip())
                 confidence = self._average_confidence([result.confidence for result in line_results])
                 model_name = line_results[0].model_name if line_results else qwen.model_name
             elif mode in {PAGE_MODE_COMPARE, PAGE_MODE_HYBRID}:
-                qwen = self._get_recognizer("qwen", model_name=model_name)
+                qwen = self._get_recognizer("qwen", model_name=model_override)
                 trocr_results = [self.recognizer.recognize(line.image_path) for line in segmentation.lines]
                 qwen_results = [self._recognize_line(qwen, line.image_path, max_tokens=max_tokens) for line in segmentation.lines]
                 if mode == PAGE_MODE_COMPARE:
@@ -171,6 +197,13 @@ class RecognitionService:
                 model_name = f"{trocr_model_name} + {qwen_model_name}"
 
         elapsed_ms = int((time.perf_counter() - start) * 1000)
+        reliability_score = self._reliability_score(
+            confidence=confidence,
+            quality_score=quality_report.score,
+            recognized_text=recognized_text,
+            review_notes=review_notes,
+        )
+        needs_review = bool(review_notes) or reliability_score < 0.45 or not recognized_text.strip()
 
         record = RecognitionRecord(
             original_filename=upload.filename or source_path.name,
@@ -194,10 +227,15 @@ class RecognitionService:
             line_bboxes_json=json.dumps([line.bbox for line in segmentation.lines]) if segmentation and return_coordinates else None,
             recognized_text=recognized_text,
             confidence=confidence,
+            reliability_score=reliability_score,
             model_name=model_name,
-            needs_review=bool(review_notes),
+            model_registry_id=self._active_registry_model_id(mode),
+            routing_reason=routing_decision.reason,
+            image_quality_json=json.dumps(quality_report.to_dict(), ensure_ascii=False),
+            needs_review=needs_review,
             review_notes_json=json.dumps(review_notes, ensure_ascii=False) if review_notes else None,
             processing_time_ms=elapsed_ms,
+            peak_vram_bytes=self._cuda_peak_memory(),
         )
         db.add(record)
         db.commit()
@@ -214,6 +252,27 @@ class RecognitionService:
         if not known_confidences:
             return None
         return sum(known_confidences) / len(known_confidences)
+
+    @staticmethod
+    def _reset_cuda_peak_memory() -> None:
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                torch.cuda.reset_peak_memory_stats()
+        except (ImportError, RuntimeError):
+            pass
+
+    @staticmethod
+    def _cuda_peak_memory() -> int | None:
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                return int(torch.cuda.max_memory_allocated())
+        except (ImportError, RuntimeError):
+            pass
+        return None
 
     def _get_recognizer(self, backend: str, model_name: str | None = None) -> BaseRecognizer:
         cache_key = f"{backend}:{model_name}" if model_name else backend
@@ -302,7 +361,6 @@ class RecognitionService:
             selected_text = cls._select_hybrid_text(trocr_text, qwen_text, trocr_result.confidence)
             disagreement = cls._relative_distance(trocr_text, qwen_text)
             if disagreement >= 0.35 and trocr_text and qwen_text:
-                selected_text = f"{selected_text} [review line {index}: TrOCR != Qwen]"
                 review_notes.append(
                     {
                         "line_number": index,
@@ -315,6 +373,41 @@ class RecognitionService:
             if selected_text:
                 lines.append(selected_text)
         return "\n".join(lines), review_notes
+
+    @staticmethod
+    def _reliability_score(
+        *,
+        confidence: float | None,
+        quality_score: float,
+        recognized_text: str,
+        review_notes: list[dict],
+    ) -> float:
+        if not recognized_text.strip():
+            return 0.0
+        if confidence is not None:
+            base = confidence
+        else:
+            base = quality_score
+        if review_notes:
+            agreement = 1 - sum(note["disagreement"] for note in review_notes) / len(review_notes)
+            base = min(base, max(0.0, agreement))
+        return round(max(0.0, min(1.0, base)), 4)
+
+    def _active_registry_model_id(self, mode: str) -> str | None:
+        backends = []
+        if mode in {PAGE_MODE_TROCR_LINES, PAGE_MODE_COMPARE, PAGE_MODE_HYBRID}:
+            backends.append("trocr")
+        if mode in {PAGE_MODE_QWEN_LINES, PAGE_MODE_QWEN_PAGE, PAGE_MODE_QWEN_LAYOUT, PAGE_MODE_COMPARE, PAGE_MODE_HYBRID}:
+            backends.append("qwen")
+        model_ids = []
+        for backend in backends:
+            try:
+                model = self.model_registry.production_model(backend)
+            except (OSError, ValueError):
+                model = None
+            if model:
+                model_ids.append(model["id"])
+        return "+".join(model_ids) or None
 
     @staticmethod
     def _select_hybrid_text(trocr_text: str, qwen_text: str, trocr_confidence: float | None) -> str:

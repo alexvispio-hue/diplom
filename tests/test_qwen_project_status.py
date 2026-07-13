@@ -1,7 +1,14 @@
 import json
 from pathlib import Path
 
-from app.services.qwen_project_status_service import build_status, count_jsonl_file, flatten_results, recommended_next_command, step_status
+from app.services.qwen_project_status_service import (
+    build_status,
+    count_jsonl_file,
+    derive_pipeline_maturity,
+    flatten_results,
+    recommended_next_command,
+    step_status,
+)
 
 
 def test_flatten_results_reads_latest_and_historical_runs() -> None:
@@ -51,6 +58,8 @@ def test_build_status_summarizes_qwen_readiness(tmp_path: Path) -> None:
     assert status["sft_dataset"]["examples"] == 1
     assert status["steps"]["build_sft"] == "passed"
     assert status["lora_dry_run_passed"] is True
+    assert status["pipeline_maturity"] == "not_ready"
+    assert status["production_ready"] is False
 
 
 def test_recommended_next_command_reports_completion_when_all_steps_passed() -> None:
@@ -64,3 +73,15 @@ def test_recommended_next_command_reports_completion_when_all_steps_passed() -> 
     }
 
     assert recommended_next_command(steps) == "All Qwen execution plan steps passed."
+
+
+def test_full_pipeline_status_does_not_treat_smoke_as_production() -> None:
+    maturity, ready, blockers = derive_pipeline_maturity(
+        {"phase": "dataset_ready", "status": "passed"},
+        {},
+        {},
+    )
+
+    assert maturity == "dataset_ready"
+    assert ready is False
+    assert "fine-tuning" in blockers[0]
