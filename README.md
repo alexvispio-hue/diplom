@@ -6,7 +6,9 @@
 
 ## Онлайн-демо
 
-Подготовлен отдельный экран для публикации в Streamlit Community Cloud: [`public_demo/streamlit_app.py`](public_demo/streamlit_app.py). Он распознаёт фрагменты без общего доступа к истории и документам. В онлайн-демо используется публичная базовая модель TrOCR; дообученные локальные веса не опубликованы.
+**[Открыть и попробовать распознавание](https://alexvispio-handwriting-ocr.streamlit.app/)** — публичное демо, установка не требуется.
+
+Демо размещено в Streamlit Community Cloud. Исходный файл: [`public_demo/streamlit_app.py`](public_demo/streamlit_app.py). Он распознаёт фрагменты без общего доступа к истории и документам. В онлайн-демо используется публичная базовая модель TrOCR; дообученные локальные веса не опубликованы.
 
 Параметры развёртывания: репозиторий `alexvispio-hue/diplom`, ветка `main`, файл `public_demo/streamlit_app.py`, Python **3.11**. [Инструкция](public_demo/README.md).
 
