@@ -10,8 +10,32 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.image_processing.page_segmentation import PageLineSegmenter
 from app.image_processing.preprocessing import ImagePreprocessor
+from app.image_processing.quality_analysis import ImageQualityAnalyzer
 from app.ocr.base import BaseRecognizer
+from app.ocr.factory import build_recognizer
+from app.services.feedback_service import FeedbackService
+from app.services.ml_environment_service import collect_status
+from app.services.model_registry_service import ModelRegistryService
+from app.services.model_router_service import ModelRouterService
 from app.storage.models import RecognitionRecord
+
+
+PAGE_MODE_TROCR_LINES = "trocr_lines"
+PAGE_MODE_QWEN_LINES = "qwen_lines"
+PAGE_MODE_QWEN_PAGE = "qwen_page"
+PAGE_MODE_QWEN_LAYOUT = "qwen_layout"
+PAGE_MODE_COMPARE = "compare"
+PAGE_MODE_HYBRID = "hybrid"
+PAGE_MODE_AUTO = "auto"
+SUPPORTED_PAGE_MODES = {
+    PAGE_MODE_TROCR_LINES,
+    PAGE_MODE_QWEN_LINES,
+    PAGE_MODE_QWEN_PAGE,
+    PAGE_MODE_QWEN_LAYOUT,
+    PAGE_MODE_COMPARE,
+    PAGE_MODE_HYBRID,
+    PAGE_MODE_AUTO,
+}
 
 
 class RecognitionService:
@@ -20,11 +44,17 @@ class RecognitionService:
         recognizer: BaseRecognizer,
         preprocessor: ImagePreprocessor | None = None,
         page_segmenter: PageLineSegmenter | None = None,
+        quality_analyzer: ImageQualityAnalyzer | None = None,
+        model_router: ModelRouterService | None = None,
     ) -> None:
         self.settings = get_settings()
         self.recognizer = recognizer
+        self._recognizers: dict[str, BaseRecognizer] = {"trocr": recognizer}
         self.preprocessor = preprocessor or ImagePreprocessor()
         self.page_segmenter = page_segmenter or PageLineSegmenter()
+        self.quality_analyzer = quality_analyzer or ImageQualityAnalyzer()
+        self.model_router = model_router or ModelRouterService()
+        self.model_registry = ModelRegistryService()
 
     async def recognize_upload(
         self,
@@ -46,6 +76,8 @@ class RecognitionService:
             raise ValueError(f"Размер файла превышает {self.settings.max_upload_size_mb} МБ.")
 
         start = time.perf_counter()
+        self._reset_cuda_peak_memory()
+        quality_report = self.quality_analyzer.analyze(source_path)
         recognition_path = source_path
         saved_processed_path = None
         if preprocessing_applied:
@@ -64,18 +96,36 @@ class RecognitionService:
             preprocessing_applied=preprocessing_applied,
             recognized_text=result.text,
             confidence=result.confidence,
+            reliability_score=result.confidence if result.confidence is not None else quality_report.score,
             model_name=result.model_name,
+            routing_reason="Fragment mode uses the configured TrOCR recognizer.",
+            image_quality_json=json.dumps(quality_report.to_dict(), ensure_ascii=False),
             processing_time_ms=elapsed_ms,
+            peak_vram_bytes=self._cuda_peak_memory(),
         )
         db.add(record)
         db.commit()
         db.refresh(record)
         return record
 
-    async def recognize_page_upload(self, upload: UploadFile, db: Session) -> RecognitionRecord:
+    async def recognize_page_upload(
+        self,
+        upload: UploadFile,
+        db: Session,
+        mode: str = PAGE_MODE_TROCR_LINES,
+        preprocessing_applied: bool = True,
+        model_name: str | None = None,
+        max_tokens: int | None = None,
+        save_intermediate_images: bool = True,
+        return_coordinates: bool = True,
+    ) -> RecognitionRecord:
+        if mode not in SUPPORTED_PAGE_MODES:
+            raise ValueError(f"Неподдерживаемый режим распознавания страницы: {mode}.")
+
         source_path = self._build_upload_path(upload.filename or "image.png")
         line_dir = self.settings.processed_dir / f"{source_path.stem}_lines"
         annotated_path = self.settings.processed_dir / f"{source_path.stem}_annotated.png"
+        preprocessed_path = self.settings.processed_dir / f"{source_path.stem}_page.png"
 
         with source_path.open("wb") as target:
             shutil.copyfileobj(upload.file, target)
@@ -87,27 +137,113 @@ class RecognitionService:
             raise ValueError(f"Размер файла превышает {self.settings.max_upload_size_mb} МБ.")
 
         start = time.perf_counter()
-        segmentation = self.page_segmenter.segment(source_path, line_dir, annotated_path)
-        line_results = [self.recognizer.recognize(line.image_path) for line in segmentation.lines]
+        self._reset_cuda_peak_memory()
+        model_override = model_name
+        quality_report = self.quality_analyzer.analyze(source_path)
+        page_path = source_path
+        if preprocessing_applied:
+            self.preprocessor.preprocess(source_path, preprocessed_path)
+            page_path = preprocessed_path
+
+        routing_decision = self.model_router.choose(
+            mode,
+            quality_report,
+            qwen_available=bool(collect_status().get("ready_for_qwen_inference")),
+        )
+        mode = routing_decision.selected_mode
+        segmentation = None
+        line_results = []
+        recognized_text = ""
+        confidence = None
+        model_name = ""
+        review_notes: list[dict] = []
+
+        if mode == PAGE_MODE_QWEN_PAGE:
+            qwen = self._get_recognizer("qwen", model_name=model_override)
+            page_result = self._recognize_full_page(qwen, page_path, max_tokens=max_tokens)
+            recognized_text = page_result.text
+            confidence = page_result.confidence
+            model_name = page_result.model_name
+        elif mode == PAGE_MODE_QWEN_LAYOUT:
+            qwen = self._get_recognizer("qwen", model_name=model_override)
+            layout_result = self._recognize_layout(qwen, page_path, max_tokens=max_tokens)
+            recognized_text = layout_result.text
+            confidence = layout_result.confidence
+            model_name = layout_result.model_name
+        else:
+            segmentation = self.page_segmenter.segment(page_path, line_dir, annotated_path)
+            if mode == PAGE_MODE_TROCR_LINES:
+                line_results = [self.recognizer.recognize(line.image_path) for line in segmentation.lines]
+                recognized_text = "\n".join(result.text.strip() for result in line_results if result.text.strip())
+                confidence = self._average_confidence([result.confidence for result in line_results])
+                model_name = line_results[0].model_name if line_results else self.recognizer.model_name
+            elif mode == PAGE_MODE_QWEN_LINES:
+                qwen = self._get_recognizer("qwen", model_name=model_override)
+                line_results = [self._recognize_line(qwen, line.image_path, max_tokens=max_tokens) for line in segmentation.lines]
+                recognized_text = "\n".join(result.text.strip() for result in line_results if result.text.strip())
+                confidence = self._average_confidence([result.confidence for result in line_results])
+                model_name = line_results[0].model_name if line_results else qwen.model_name
+            elif mode in {PAGE_MODE_COMPARE, PAGE_MODE_HYBRID}:
+                qwen = self._get_recognizer("qwen", model_name=model_override)
+                trocr_results = [self.recognizer.recognize(line.image_path) for line in segmentation.lines]
+                qwen_results = [self._recognize_line(qwen, line.image_path, max_tokens=max_tokens) for line in segmentation.lines]
+                if mode == PAGE_MODE_COMPARE:
+                    recognized_text = self._format_comparison(trocr_results, qwen_results)
+                else:
+                    recognized_text, review_notes = self._build_hybrid_result(trocr_results, qwen_results)
+                confidence = self._average_confidence([result.confidence for result in trocr_results + qwen_results])
+                trocr_model_name = trocr_results[0].model_name if trocr_results else "trocr"
+                qwen_model_name = qwen_results[0].model_name if qwen_results else getattr(qwen, "model_name", "qwen")
+                model_name = f"{trocr_model_name} + {qwen_model_name}"
+
         elapsed_ms = int((time.perf_counter() - start) * 1000)
+        reliability_score = self._reliability_score(
+            confidence=confidence,
+            quality_score=quality_report.score,
+            recognized_text=recognized_text,
+            review_notes=review_notes,
+        )
+        needs_review = bool(review_notes) or reliability_score < 0.45 or not recognized_text.strip()
 
         record = RecognitionRecord(
             original_filename=upload.filename or source_path.name,
             file_size_bytes=file_size_bytes,
             stored_image_path=str(source_path),
-            processed_image_path=str(segmentation.annotated_image_path),
-            preprocessing_applied=True,
-            recognition_mode="page",
-            line_count=len(segmentation.lines),
-            line_image_paths_json=json.dumps([str(line.image_path) for line in segmentation.lines]),
-            recognized_text="\n".join(result.text.strip() for result in line_results if result.text.strip()),
-            confidence=self._average_confidence([result.confidence for result in line_results]),
-            model_name=line_results[0].model_name,
+            processed_image_path=self._select_processed_image_path(
+                segmentation=segmentation,
+                preprocessed_path=preprocessed_path,
+                source_path=source_path,
+                preprocessing_applied=preprocessing_applied,
+                save_intermediate_images=save_intermediate_images,
+            ),
+            preprocessing_applied=preprocessing_applied,
+            recognition_mode=mode,
+            line_count=len(segmentation.lines) if segmentation else 0,
+            line_image_paths_json=(
+                json.dumps([str(line.image_path) for line in segmentation.lines])
+                if segmentation and save_intermediate_images
+                else None
+            ),
+            line_bboxes_json=json.dumps([line.bbox for line in segmentation.lines]) if segmentation and return_coordinates else None,
+            recognized_text=recognized_text,
+            confidence=confidence,
+            reliability_score=reliability_score,
+            model_name=model_name,
+            model_registry_id=self._active_registry_model_id(mode),
+            routing_reason=routing_decision.reason,
+            image_quality_json=json.dumps(quality_report.to_dict(), ensure_ascii=False),
+            needs_review=needs_review,
+            review_notes_json=json.dumps(review_notes, ensure_ascii=False) if review_notes else None,
             processing_time_ms=elapsed_ms,
+            peak_vram_bytes=self._cuda_peak_memory(),
         )
         db.add(record)
         db.commit()
         db.refresh(record)
+        if review_notes:
+            record = FeedbackService().save(record, "partial", db, corrected_text=None)
+        if not save_intermediate_images:
+            self._remove_intermediate_paths(line_dir, annotated_path, preprocessed_path, preprocessing_applied)
         return record
 
     @staticmethod
@@ -116,6 +252,198 @@ class RecognitionService:
         if not known_confidences:
             return None
         return sum(known_confidences) / len(known_confidences)
+
+    @staticmethod
+    def _reset_cuda_peak_memory() -> None:
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                torch.cuda.reset_peak_memory_stats()
+        except (ImportError, RuntimeError):
+            pass
+
+    @staticmethod
+    def _cuda_peak_memory() -> int | None:
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                return int(torch.cuda.max_memory_allocated())
+        except (ImportError, RuntimeError):
+            pass
+        return None
+
+    def _get_recognizer(self, backend: str, model_name: str | None = None) -> BaseRecognizer:
+        cache_key = f"{backend}:{model_name}" if model_name else backend
+        if cache_key not in self._recognizers:
+            self._recognizers[cache_key] = build_recognizer(backend, model_name=model_name)
+        return self._recognizers[cache_key]
+
+    @staticmethod
+    def _recognize_line(recognizer: BaseRecognizer, image_path: Path, max_tokens: int | None = None):
+        try:
+            return recognizer.recognize(image_path, max_new_tokens=max_tokens)
+        except TypeError:
+            return recognizer.recognize(image_path)
+
+    @staticmethod
+    def _recognize_full_page(recognizer: BaseRecognizer, image_path: Path, max_tokens: int | None = None):
+        if hasattr(recognizer, "recognize_page"):
+            try:
+                return recognizer.recognize_page(image_path, max_new_tokens=max_tokens)
+            except TypeError:
+                return recognizer.recognize_page(image_path)
+        return recognizer.recognize(image_path)
+
+    @staticmethod
+    def _recognize_layout(recognizer: BaseRecognizer, image_path: Path, max_tokens: int | None = None):
+        if hasattr(recognizer, "recognize_layout"):
+            try:
+                return recognizer.recognize_layout(image_path, max_new_tokens=max_tokens)
+            except TypeError:
+                return recognizer.recognize_layout(image_path)
+        return recognizer.recognize(image_path)
+
+    @staticmethod
+    def _select_processed_image_path(
+        segmentation,
+        preprocessed_path: Path,
+        source_path: Path,
+        preprocessing_applied: bool,
+        save_intermediate_images: bool,
+    ) -> str | None:
+        if not save_intermediate_images:
+            return None
+        if segmentation:
+            return str(segmentation.annotated_image_path)
+        return str(preprocessed_path if preprocessing_applied else source_path)
+
+    @staticmethod
+    def _remove_intermediate_paths(
+        line_dir: Path,
+        annotated_path: Path,
+        preprocessed_path: Path,
+        preprocessing_applied: bool,
+    ) -> None:
+        shutil.rmtree(line_dir, ignore_errors=True)
+        annotated_path.unlink(missing_ok=True)
+        if preprocessing_applied:
+            preprocessed_path.unlink(missing_ok=True)
+
+    @staticmethod
+    def _format_comparison(trocr_results, qwen_results) -> str:
+        blocks = []
+        for index, (trocr_result, qwen_result) in enumerate(zip(trocr_results, qwen_results), start=1):
+            blocks.append(
+                "\n".join(
+                    [
+                        f"Строка {index}",
+                        f"TrOCR: {trocr_result.text.strip()}",
+                        f"Qwen: {qwen_result.text.strip()}",
+                    ]
+                )
+            )
+        return "\n\n".join(blocks)
+
+    @classmethod
+    def _format_hybrid(cls, trocr_results, qwen_results) -> str:
+        text, _ = cls._build_hybrid_result(trocr_results, qwen_results)
+        return text
+
+    @classmethod
+    def _build_hybrid_result(cls, trocr_results, qwen_results) -> tuple[str, list[dict]]:
+        lines = []
+        review_notes = []
+        for index, (trocr_result, qwen_result) in enumerate(zip(trocr_results, qwen_results), start=1):
+            trocr_text = trocr_result.text.strip()
+            qwen_text = qwen_result.text.strip()
+            selected_text = cls._select_hybrid_text(trocr_text, qwen_text, trocr_result.confidence)
+            disagreement = cls._relative_distance(trocr_text, qwen_text)
+            if disagreement >= 0.35 and trocr_text and qwen_text:
+                review_notes.append(
+                    {
+                        "line_number": index,
+                        "trocr_text": trocr_text,
+                        "qwen_text": qwen_text,
+                        "disagreement": disagreement,
+                        "reason": "TrOCR and Qwen line outputs differ significantly.",
+                    }
+                )
+            if selected_text:
+                lines.append(selected_text)
+        return "\n".join(lines), review_notes
+
+    @staticmethod
+    def _reliability_score(
+        *,
+        confidence: float | None,
+        quality_score: float,
+        recognized_text: str,
+        review_notes: list[dict],
+    ) -> float:
+        if not recognized_text.strip():
+            return 0.0
+        if confidence is not None:
+            base = confidence
+        else:
+            base = quality_score
+        if review_notes:
+            agreement = 1 - sum(note["disagreement"] for note in review_notes) / len(review_notes)
+            base = min(base, max(0.0, agreement))
+        return round(max(0.0, min(1.0, base)), 4)
+
+    def _active_registry_model_id(self, mode: str) -> str | None:
+        backends = []
+        if mode in {PAGE_MODE_TROCR_LINES, PAGE_MODE_COMPARE, PAGE_MODE_HYBRID}:
+            backends.append("trocr")
+        if mode in {PAGE_MODE_QWEN_LINES, PAGE_MODE_QWEN_PAGE, PAGE_MODE_QWEN_LAYOUT, PAGE_MODE_COMPARE, PAGE_MODE_HYBRID}:
+            backends.append("qwen")
+        model_ids = []
+        for backend in backends:
+            try:
+                model = self.model_registry.production_model(backend)
+            except (OSError, ValueError):
+                model = None
+            if model:
+                model_ids.append(model["id"])
+        return "+".join(model_ids) or None
+
+    @staticmethod
+    def _select_hybrid_text(trocr_text: str, qwen_text: str, trocr_confidence: float | None) -> str:
+        if not trocr_text:
+            return qwen_text
+        if not qwen_text:
+            return trocr_text
+        if trocr_text == qwen_text:
+            return trocr_text
+        if trocr_confidence is not None and trocr_confidence >= 0.9:
+            return trocr_text
+        if len(qwen_text) >= len(trocr_text) * 1.15:
+            return qwen_text
+        return trocr_text
+
+    @staticmethod
+    def _relative_distance(left: str, right: str) -> float:
+        if left == right:
+            return 0.0
+        if not left or not right:
+            return 1.0
+
+        previous = list(range(len(right) + 1))
+        for left_index, left_char in enumerate(left, start=1):
+            current = [left_index]
+            for right_index, right_char in enumerate(right, start=1):
+                substitution_cost = 0 if left_char == right_char else 1
+                current.append(
+                    min(
+                        previous[right_index] + 1,
+                        current[right_index - 1] + 1,
+                        previous[right_index - 1] + substitution_cost,
+                    )
+                )
+            previous = current
+        return previous[-1] / max(len(left), len(right))
 
     def _build_upload_path(self, filename: str) -> Path:
         suffix = Path(filename).suffix.lower() or ".png"

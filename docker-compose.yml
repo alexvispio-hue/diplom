@@ -5,13 +5,47 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/app/data
+      - ./models:/app/models
       - hf-cache:/root/.cache/huggingface
     environment:
       APP_NAME: Handwriting OCR
-      APP_VERSION: 0.1.0
+      APP_VERSION: 0.2.0
       RECOGNIZER_BACKEND: trocr
       TROCR_MODEL_NAME: kazars24/trocr-base-handwritten-ru
       GENERATION_MAX_NEW_TOKENS: 128
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  ui:
+    build: .
+    command:
+      - python
+      - -m
+      - streamlit
+      - run
+      - ui/streamlit_app.py
+      - --server.address
+      - 0.0.0.0
+      - --server.port
+      - "8501"
+      - --server.headless
+      - "true"
+      - --browser.gatherUsageStats
+      - "false"
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - hf-cache:/root/.cache/huggingface
+    environment:
+      OCR_API_URL: http://backend:8000/api
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   hf-cache:

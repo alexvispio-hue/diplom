@@ -1,42 +1,33 @@
-# План дальнейшей разработки
+# Следующие шаги
 
-## Выполнено
+Инженерная часть проекта подготовлена без запуска нового Qwen-дообучения. Текущее состояние фиксируется так:
 
-- подключен `Cyrillic Handwriting Dataset`;
-- выбрана русскоязычная baseline-модель `kazars24/trocr-base-handwritten-ru`;
-- реализована оценка модели по `test.tsv`;
-- добавлен скрипт fine-tuning;
-- выполнен первоначальный расчет CER/WER;
-- сделана переключаемая предобработка в пользовательском интерфейсе.
-- выполнено полное GPU-дообучение в течение одной эпохи;
-- подключен автоматический выбор локального fine-tuned checkpoint.
+## Уже сделано
 
-## Следующие задачи
+- подготовлен и проверен полный HWR200 page-level dataset;
+- добавлены dataset/run manifests, review policy и group-aware sampler;
+- trainer получил validation, best-checkpoint, resume, NaN/OOM health checks и generation evaluation;
+- добавлены benchmark runner, quality gate, gold-review workflow и regression subset;
+- реализованы фоновые OCR jobs, pause/resume/cancel/retry и восстановление после перезапуска;
+- реализованы импорт папки, подготовка изображения, overlay строк, редактор документа, autosave, revisions и searchable PDF;
+- добавлены model registry, checksum verification, promotion/rollback, model downloads и диагностика;
+- добавлены Lite/Full/Developer installation profiles, Inno Setup и reproducible release ZIP;
+- CI проверяет ruff, compileall, pytest, dependency audit и release archive.
 
-1. Добавить выделение строк на фотографии страницы тетради.
-2. Собрать собственный тестовый набор фотографий конспектов.
-3. Подготовить таблицы и графики для текста диплома.
-4. Проверить целесообразность дополнительных эпох обучения.
+## Что осталось до запуска обучения
 
-## Экспериментальная часть
+1. В интерфейсе `Gold benchmark` вручную проверить 200 кандидатных страниц и финализировать immutable gold manifest.
+2. Запустить baseline suite на финальном gold-наборе для TrOCR, Qwen base и hybrid. Это inference/evaluation, не обучение.
+3. Выполнить короткий 100-step performance run, чтобы уточнить скорость, VRAM и размер окна изображения.
+4. После отдельного подтверждения пользователя запустить pilot, 10% run и затем полный Qwen3-VL-2B training.
+5. Выполнить обязательную evaluation, сравнить CER/WER, exact-page rate, line metrics, latency, VRAM и regression subset.
+6. Продвинуть адаптер в `candidate`, затем в `production` только после quality gate.
 
-Основной датасет содержит короткие русские рукописные фрагменты и разметку в TSV-файлах:
+## Ограничения текущего состояния
 
-- `72 286` примеров для обучения;
-- `1 544` примера для тестирования.
+- полноценное обучение полного HWR200 в этой сессии не запускалось;
+- Qwen-адаптеры в `models` считаются `experimental`, Qwen не назначен production;
+- gold benchmark пока не имеет требуемого ручного подтверждения;
+- полный pytest и чистая установка на отдельном компьютере должны быть подтверждены в CI/на тестовой машине, потому что текущая среда блокирует доступ к части `%TEMP%`.
 
-Итоговое сравнение на всей тестовой выборке:
-
-| Модель | CER | WER |
-| --- | ---: | ---: |
-| Baseline | 0.1002 | 0.4096 |
-| Fine-tuned checkpoint | **0.0959** | **0.4040** |
-
-При сравнении первых 30 фрагментов чистые исходные изображения дали лучший результат, чем обработанные:
-
-| Режим | CER | WER |
-| --- | ---: | ---: |
-| Без предобработки | 0.0409 | 0.2278 |
-| С предобработкой | 0.0542 | 0.2889 |
-
-Это означает, что предобработка должна использоваться прежде всего для фотографий, а не для уже подготовленных строк датасета.
+Подробные требования: [product_technical_specification.md](product_technical_specification.md). Порядок релизной работы: [product_roadmap.md](product_roadmap.md).
